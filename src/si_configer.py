@@ -46,4 +46,26 @@ class SIConfiger(object):
             sys.exit()
 
 
+    def configOptionValue(self, section, option):
+        """
+        Get a configuration value from the local configuration file.
+        :param section: String of section in config file.
+        :param option: String of option in config file.
+        :returns: The value contained in the configuration file.
+        """
+
+        try:
+            configValue = self._config.get(section, option)
+            if configValue == "True":
+                return True
+            elif configValue == "False":
+                return False
+            else:
+                return configValue
+        except:
+            self.logger.log(
+                "Failed when getting configuration option {} in section {"
+                "}.".format(option, section), 'error')
+            sys.exit(-1)
+
 
