@@ -18,6 +18,7 @@ __license__ = 'https://raw.github.com/Hawaii-Smart-Energy-Project/Smart-Grid' \
 from sek.logger import SEKLogger
 from si_configer import SIConfiger
 from sek.db_util import SEKDBUtil
+from sek.db_connector import SEKDBConnector
 import argparse
 
 
@@ -52,7 +53,15 @@ class SingleFileLoader(object):
         self.logger = SEKLogger(__name__)
         self.configer = SIConfiger()
         self.dbUtil = SEKDBUtil()
-        self.cursor = None
+        self.conn = SEKDBConnector(
+            dbName = self.configer.configOptionValue('Database', 'db_name'),
+            dbHost = self.configer.configOptionValue('Database', 'db_host'),
+            dbPort = self.configer.configOptionValue('Database', 'db_port'),
+            dbUsername = self.configer.configOptionValue('Database',
+                                                         'db_username'),
+            dbPassword = self.configer.configOptionValue('Database',
+                                                         'db_password')).connectDB()
+        self.cursor = self.conn.cursor()
         self.meterDataTable = "MeterData"
         self.exitOnError = True
         self.columns = [
@@ -120,7 +129,7 @@ class SingleFileLoader(object):
 
     def insertData(self):
         """
-
+        Insert a row of data to the database.
         """
         values = ''
         sql = 'INSERT INTO "{0}" ({1}) VALUES( {2})'.format(self.meterDataTable,
