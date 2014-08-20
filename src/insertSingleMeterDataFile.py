@@ -6,7 +6,7 @@ Inserted a single file of meter data.
 
 Usage:
 
-    insertSingleSIMeterDataFile.py
+    insertSingleMeterDataFile.py
 
 """
 

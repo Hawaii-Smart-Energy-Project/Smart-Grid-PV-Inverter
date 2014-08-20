@@ -43,7 +43,15 @@ class SIConfiger(object):
             self.logger.log(
                 "Configuration file permissions are too permissive. Operation "
                 "will not continue.", 'error')
-            sys.exit()
+            sys.exit(-1)
+
+        try:
+            self._config.read(['site.cfg', os.path.expanduser(configFilePath)])
+        except:
+            self.logger.log("Critical error: The data in {} cannot be "
+                            "accessed successfully.".format(configFilePath),
+                            'ERROR')
+            sys.exit(-1)
 
 
     def configOptionValue(self, section, option):
