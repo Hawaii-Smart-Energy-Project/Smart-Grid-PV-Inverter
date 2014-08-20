@@ -50,7 +50,7 @@ class SingleFileLoader(object):
         :param testing: Flag indicating if testing mode is on.
         """
 
-        self.logger = SEKLogger(__name__)
+        self.logger = SEKLogger(__name__, 'debug')
         self.configer = SIConfiger()
         self.dbUtil = SEKDBUtil()
         self.conn = SEKDBConnector(
@@ -65,7 +65,7 @@ class SingleFileLoader(object):
         self.meterDataTable = "MeterData"
         self.exitOnError = True
         self.columns = [
-            "time(UTC)", "error", "lowalarm", "highalarm",
+            "meter_id", "time_utc", "error", "lowalarm", "highalarm",
             "Accumulated Real Energy Net (kWh)",
             "Real Energy Quadrants 1 & 4, Import (kWh)",
             "Real Energy Quadrants 2 & 3, Export (kWh)",
@@ -127,18 +127,35 @@ class SingleFileLoader(object):
         ]
 
 
-    def insertData(self):
+    def insertData(self, values):
         """
         Insert a row of data to the database.
+        :param values: String of raw values from the source CSV files.
+        :return: Boolean indicating success or failure.
         """
-        values = ''
-        sql = 'INSERT INTO "{0}" ({1}) VALUES( {2})'.format(self.meterDataTable,
-                                                            ','.join(
-                                                                self.columns),
-                                                            values)
+        sql = 'INSERT INTO "{0}" ({1}) VALUES( 0,{2})'.format(
+            self.meterDataTable,
+            ','.join("\"" + c + "\"" for c in self.columns),
+            self.sqlFormattedValues(values))
         self.logger.log('sql: {}'.format(sql), 'debug')
-        success = self.dbUtil.executeSQL(self.cursor, sql,
-                                         exitOnFail = self.exitOnError)
+        return self.dbUtil.executeSQL(self.cursor, sql,
+                                      exitOnFail = self.exitOnError)
+
+
+    def sqlFormattedValues(self, values):
+        """
+        :param values: String of raw values from the source CSV files.
+        :return: String of PostgreSQL compatible values.
+        """
+
+        def makeNULL(x):
+            return x == '' and 'NULL' or str(x)
+
+        def makeSingleQuotes(x):
+            return str(x).replace('"', "'")
+
+        return ','.join(
+            map(lambda x: makeSingleQuotes(makeNULL(x)), values.split(',')))
 
 
     def meterID(self, meterName):
