@@ -127,19 +127,23 @@ class SingleFileLoader(object):
         ]
 
 
-    def insertData(self, values):
+    def insertData(self, meterName, values):
         """
         Insert a row of data to the database.
         :param values: String of raw values from the source CSV files.
         :return: Boolean indicating success or failure.
         """
-        sql = 'INSERT INTO "{0}" ({1}) VALUES( 0,{2})'.format(
+        sql = 'INSERT INTO "{0}" ({1}) VALUES( {2},{3})'.format(
             self.meterDataTable,
             ','.join("\"" + c + "\"" for c in self.columns),
-            self.sqlFormattedValues(values))
-        self.logger.log('sql: {}'.format(sql), 'debug')
-        return self.dbUtil.executeSQL(self.cursor, sql,
-                                      exitOnFail = self.exitOnError)
+            self.meterID(meterName), self.sqlFormattedValues(values))
+        self.logger.log('sql {}'.format(sql), 'debug')
+        if self.dbUtil.executeSQL(self.cursor, sql,
+                                  exitOnFail = self.exitOnError):
+            self.conn.commit()
+            return True
+        else:
+            return False
 
 
     def sqlFormattedValues(self, values):
@@ -166,27 +170,54 @@ class SingleFileLoader(object):
         :return: Int of meter ID
         """
 
+
         def __meterID(name):
             """
             :param name: String of meter name
             :return: Int or None
             """
-            sql = 'SELECT meter_id FROM "Meters" WHERE meter_name = \'{}\''.format(name)
+            sql = 'SELECT meter_id FROM "Meters" WHERE meter_name = \'{' \
+                  '}\''.format(name)
             success = self.dbUtil.executeSQL(self.cursor, sql,
                                              exitOnFail = self.exitOnError)
-            return id
+            if success:
+                result = self.cursor.fetchall()
+                assert len(result) == 1 or len(result) == 0
+                if result:
+                    return int(result[0][0])
+                else:
+                    return None
+            else:
+                return None
+
 
         def __makeNewMeter(name):
             """
             :param name: String of meter name
             :return: Int or None
             """
-            sql = 'INSERT INTO "Meters" (meter_name) VALUES (\'{}\')'.format(name)
-            return id
+            self.logger.log('making new meter', 'debug')
+            sql = 'INSERT INTO "Meters" (meter_name) VALUES (\'{}\')'.format(
+                name)
+            success = self.dbUtil.executeSQL(self.cursor, sql,
+                                             exitOnFail = self.exitOnError)
+            self.conn.commit()
+            if success:
+                sql = 'SELECT CURRVAL(\'meter_id_seq\')'
+                success = self.dbUtil.executeSQL(self.cursor, sql,
+                                                 exitOnFail = self.exitOnError)
+                if success:
+                    return int(self.cursor.fetchall()[0][0])
+            else:
+                return None
+
 
         id = __meterID(meterName)
-        if id:
-            return id
+        self.logger.log('id {}'.format(id))
+
+        # Python 3: isinstance( id, int )
+        if isinstance(id, ( int, long )):
+            return int(id)
         else:
             return __makeNewMeter(meterName)
 

@@ -7,12 +7,24 @@ import unittest
 from insertSingleMeterDataFile import SingleFileLoader
 from si_configer import SIConfiger
 from sek.logger import SEKLogger
+from sek.db_util import SEKDBUtil
+from sek.db_connector import SEKDBConnector
 
 
 class SingleFileLoaderTester(unittest.TestCase):
     def setUp(self):
         self.logger = SEKLogger(__name__,'DEBUG')
         self.configer = SIConfiger()
+        self.conn = SEKDBConnector(
+            dbName = self.configer.configOptionValue('Database', 'db_name'),
+            dbHost = self.configer.configOptionValue('Database', 'db_host'),
+            dbPort = self.configer.configOptionValue('Database', 'db_port'),
+            dbUsername = self.configer.configOptionValue('Database',
+                                                         'db_username'),
+            dbPassword = self.configer.configOptionValue('Database',
+                                                         'db_password')).connectDB()
+        self.cursor = self.conn.cursor()
+        self.dbUtil = SEKDBUtil()
         self.inserter = SingleFileLoader()
         self.data = '"2014-07-12 16:22:30",0,,,1187488464896.00,' \
                     '2322185846784.00,1134697381888.00,35184644096.00,' \
@@ -26,6 +38,7 @@ class SingleFileLoaderTester(unittest.TestCase):
                     '288230389841920.02,12668.18,68729384.00,0,-3.68,-4.18,,' \
                     '1.00,0.79,,3.81,4.25,,-0.97,-0.98,,244.01,,,121.54,' \
                     '122.46,,31.28,34.59,'
+        self.testMeterName = 'test-meter'
 
 
     def test_columns(self):
@@ -33,11 +46,52 @@ class SingleFileLoaderTester(unittest.TestCase):
 
 
     def test_insert_data(self):
-        self.inserter.insertData(self.data)
+        self.logger.log('testing data insert')
+        self.assertTrue(self.inserter.insertData(self.testMeterName, self.data))
+        self.conn.commit()
 
 
     def test_sql_formatted_values(self):
-        self.logger.log('data: {}'.format(self.inserter.sqlFormattedValues(self.data)))
+        self.logger.log(
+            'data: {}'.format(self.inserter.sqlFormattedValues(self.data)))
+
+
+    def test_meter_id(self):
+        self.logger.log('testing meter id')
+        meter_id = self.inserter.meterID(self.testMeterName)
+        self.logger.log('meter id {}'.format(meter_id))
+        self.assertTrue(isinstance(meter_id, ( int, long )))
+        self.logger.log('getting meter id')
+        sql = 'SELECT meter_id FROM "Meters" WHERE meter_name = \'{}\''.format(
+            self.testMeterName)
+        success = self.dbUtil.executeSQL(self.cursor, sql, exitOnFail = True)
+        if success:
+            result = self.cursor.fetchall()
+            self.assertEquals(1, len(result))
+        else:
+            self.logger.log('failed to retrieve meter id', 'error')
+
+
+    def tearDown(self):
+        self.logger.log('teardown', 'debug')
+        sql = 'SELECT meter_id FROM "Meters" WHERE meter_name = \'{}\''.format(
+            self.testMeterName)
+        success = self.dbUtil.executeSQL(self.cursor, sql, exitOnFail = True)
+        if success:
+            result = self.cursor.fetchall()
+            if len(result) == 1:
+                sql = 'DELETE FROM "Meters" WHERE meter_id = {}'.format(
+                    result[0][0])
+                success = self.dbUtil.executeSQL(self.cursor, sql,
+                                                 exitOnFail = True)
+                if success:
+                    self.conn.commit()
+                sql = 'SELECT meter_id FROM "Meters" WHERE meter_name = \'{' \
+                      '}\''.format(self.testMeterName)
+                success = self.dbUtil.executeSQL(self.cursor, sql,
+                                                 exitOnFail = True)
+                result = self.cursor.fetchall()
+                self.assertEquals(0, len(result))
 
 
 if __name__ == '__main__':
@@ -45,7 +99,7 @@ if __name__ == '__main__':
 
     if RUN_SELECTED_TESTS:
 
-        tests = ['test_insert_data']
+        tests = ['test_insert_data', 'test_meter_id']
 
         # For testing:
         # selected_tests = []
