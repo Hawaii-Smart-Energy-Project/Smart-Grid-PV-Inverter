@@ -23,6 +23,7 @@ from sek.db_util import SEKDBUtil
 from sek.db_connector import SEKDBConnector
 import argparse
 import os
+import sys
 
 
 commandLineArgs = None
@@ -136,23 +137,26 @@ class SingleFileLoader(object):
 
     def insertDataFromFile(self):
         """
-        Process input file as a stream.
+        Process input file as a stream from the object attribute's filepath.
         :return:
         """
         dataFile = open(self.filepath)
-        cnt = 0
+        cnt = 1
 
         # @todo handle io errors
+        self.logger.log('loading data from {}'.format(dataFile))
         for line in dataFile:
             self.insertData(line.rstrip('\n')) if cnt != 0 else None
-            if cnt % 100:
+            if cnt % 10000 == 0:
                 self.conn.commit()
+                self.logger.log('committing at {}'.format(cnt),'debug')
+                sys.stdout.flush()
             cnt += 1
         self.conn.commit()
         dataFile.close()
 
 
-    def insertData(self, values):
+    def insertData(self, values, commitOnEvery = False):
         """
         Insert a row of data to the database.
         :param values: String of raw values from the source CSV files.
@@ -164,10 +168,11 @@ class SingleFileLoader(object):
             self.meterDataTable,
             ','.join("\"" + c + "\"" for c in self.columns),
             self.meterID(self.meterName()), self.sqlFormattedValues(values))
-        self.logger.log('sql {}'.format(sql), 'debug')
+        # self.logger.log('sql {}'.format(sql), 'debug')
         if self.dbUtil.executeSQL(self.cursor, sql,
                                   exitOnFail = self.exitOnError):
-            self.conn.commit()
+            if commitOnEvery:
+                self.conn.commit()
             return True
         else:
             return False
@@ -249,7 +254,7 @@ class SingleFileLoader(object):
 
 
         id = __meterID(meterName)
-        self.logger.log('id {}'.format(id))
+        # self.logger.log('id {}'.format(id))
 
         # Python 3: if isinstance( id, int ):
         if isinstance(id, ( int, long )):
