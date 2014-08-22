@@ -77,12 +77,19 @@ class SingleFileLoaderTester(unittest.TestCase):
         Test getting the meter name.
         :return:
         """
-        self.logger.log(self.inserter.meterName(), 'debug')
+        self.assertEquals(self.inserter.meterName(), self.testMeterName)
 
 
     def test_insert_data_from_file(self):
         self.inserter.insertDataFromFile()
+        sql = 'SELECT * FROM "MeterData" WHERE meter_id = {}'.format(
+            self.inserter.meterID(self.testMeterName))
+        success = self.dbUtil.executeSQL(self.cursor, sql, exitOnFail = True)
+        if success:
+            result = self.cursor.fetchall()
+            self.assertEquals(len(result), 10)
 
+        self.assertTrue(success)
 
     def tearDown(self):
         self.logger.log('teardown', 'debug')
@@ -111,10 +118,10 @@ if __name__ == '__main__':
 
     if RUN_SELECTED_TESTS:
 
-        tests = ['test_insert_data', 'test_meter_id', 'test_meter_name']
+        tests = ['test_insert_data', 'test_meter_id', 'test_meter_name', 'test_insert_data_from_file']
 
         # For testing:
-        selected_tests = ['test_insert_data_from_file']
+        selected_tests = []
 
         mySuite = unittest.TestSuite()
         if len(selected_tests) > 0:

@@ -136,14 +136,20 @@ class SingleFileLoader(object):
 
     def insertDataFromFile(self):
         """
-
+        Process input file as a stream.
         :return:
         """
         dataFile = open(self.filepath)
         cnt = 0
+
+        # @todo handle io errors
         for line in dataFile:
             self.insertData(line.rstrip('\n')) if cnt != 0 else None
+            if cnt % 100:
+                self.conn.commit()
             cnt += 1
+        self.conn.commit()
+        dataFile.close()
 
 
     def insertData(self, values):
@@ -157,7 +163,7 @@ class SingleFileLoader(object):
         sql = 'INSERT INTO "{0}" ({1}) VALUES({2},{3})'.format(
             self.meterDataTable,
             ','.join("\"" + c + "\"" for c in self.columns),
-            self.meterID(self.meterName), self.sqlFormattedValues(values))
+            self.meterID(self.meterName()), self.sqlFormattedValues(values))
         self.logger.log('sql {}'.format(sql), 'debug')
         if self.dbUtil.executeSQL(self.cursor, sql,
                                   exitOnFail = self.exitOnError):
@@ -189,7 +195,7 @@ class SingleFileLoader(object):
         :return:
         """
         # @todo validate meter name
-        return os.path.dirname(self.filepath)
+        return os.path.basename(os.path.dirname(self.filepath))
 
 
     def meterID(self, meterName):
@@ -245,7 +251,7 @@ class SingleFileLoader(object):
         id = __meterID(meterName)
         self.logger.log('id {}'.format(id))
 
-        # Python 3: isinstance( id, int )
+        # Python 3: if isinstance( id, int ):
         if isinstance(id, ( int, long )):
             return int(id)
         else:
