@@ -25,7 +25,7 @@ class SingleFileLoaderTester(unittest.TestCase):
                                                          'db_password')).connectDB()
         self.cursor = self.conn.cursor()
         self.dbUtil = SEKDBUtil()
-        self.inserter = SingleFileLoader()
+        self.inserter = SingleFileLoader('data/test-meter/log.csv')
         self.data = '"2014-07-12 16:22:30",0,,,1187488464896.00,' \
                     '2322185846784.00,1134697381888.00,35184644096.00,' \
                     '290857353216.00,10133100822528.00,367.13,' \
@@ -72,6 +72,14 @@ class SingleFileLoaderTester(unittest.TestCase):
             self.logger.log('failed to retrieve meter id', 'error')
 
 
+    def test_meter_name(self):
+        """
+        Test getting the meter name.
+        :return:
+        """
+        self.logger.log(self.inserter.meterName(), 'debug')
+
+
     def tearDown(self):
         self.logger.log('teardown', 'debug')
         sql = 'SELECT meter_id FROM "Meters" WHERE meter_name = \'{}\''.format(
@@ -102,11 +110,15 @@ if __name__ == '__main__':
         tests = ['test_insert_data', 'test_meter_id']
 
         # For testing:
-        # selected_tests = []
+        selected_tests = ['test_meter_name']
 
         mySuite = unittest.TestSuite()
-        for t in tests:
-            mySuite.addTest(SingleFileLoaderTester(t))
+        if len(selected_tests) > 0:
+            for t in selected_tests:
+                mySuite.addTest(SingleFileLoaderTester(t))
+        else:
+            for t in tests:
+                mySuite.addTest(SingleFileLoaderTester(t))
         unittest.TextTestRunner().run(mySuite)
     else:
         unittest.main()

@@ -8,6 +8,8 @@ Usage:
 
     insertSingleMeterDataFile.py
 
+The meter name is by convention the folder name in which the data is contained.
+
 """
 
 __author__ = 'Daniel Zhang (張道博)'
@@ -20,6 +22,10 @@ from si_configer import SIConfiger
 from sek.db_util import SEKDBUtil
 from sek.db_connector import SEKDBConnector
 import argparse
+import os
+
+
+commandLineArgs = None
 
 
 def processCommandLineArguments():
@@ -43,7 +49,7 @@ class SingleFileLoader(object):
     specified in the configuration file.
     """
 
-    def __init__(self, testing = False):
+    def __init__(self, filepath = '', testing = False):
         """
         Constructor.
 
@@ -125,6 +131,7 @@ class SingleFileLoader(object):
             "Current, Phase A (Amps)", "Current, Phase B (Amps)",
             "Current, Phase C (Amps)"
         ]
+        self.filepath = filepath
 
 
     def insertData(self, meterName, values):
@@ -160,6 +167,14 @@ class SingleFileLoader(object):
 
         return ','.join(
             map(lambda x: makeSingleQuotes(makeNULL(x)), values.split(',')))
+
+
+    def meterName(self):
+        """
+        The meter name is the name of the containing folder.
+        :return:
+        """
+        return os.path.dirname(self.filepath)
 
 
     def meterID(self, meterName):
@@ -222,5 +237,5 @@ class SingleFileLoader(object):
             return __makeNewMeter(meterName)
 
 if __name__ == '__main__':
-    inserter = SingleFileLoader()
     processCommandLineArguments()
+    inserter = SingleFileLoader(commandLineArgs.filepath)
