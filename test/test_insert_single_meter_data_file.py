@@ -47,7 +47,7 @@ class SingleFileLoaderTester(unittest.TestCase):
 
     def test_insert_data(self):
         self.logger.log('testing data insert')
-        self.assertTrue(self.inserter.insertData(self.testMeterName, self.data))
+        self.assertTrue(self.inserter.insertData(self.data))
         self.conn.commit()
 
 
@@ -80,6 +80,10 @@ class SingleFileLoaderTester(unittest.TestCase):
         self.logger.log(self.inserter.meterName(), 'debug')
 
 
+    def test_insert_data_from_file(self):
+        self.inserter.insertDataFromFile()
+
+
     def tearDown(self):
         self.logger.log('teardown', 'debug')
         sql = 'SELECT meter_id FROM "Meters" WHERE meter_name = \'{}\''.format(
@@ -107,10 +111,10 @@ if __name__ == '__main__':
 
     if RUN_SELECTED_TESTS:
 
-        tests = ['test_insert_data', 'test_meter_id']
+        tests = ['test_insert_data', 'test_meter_id', 'test_meter_name']
 
         # For testing:
-        selected_tests = ['test_meter_name']
+        selected_tests = ['test_insert_data_from_file']
 
         mySuite = unittest.TestSuite()
         if len(selected_tests) > 0:

@@ -134,16 +134,30 @@ class SingleFileLoader(object):
         self.filepath = filepath
 
 
-    def insertData(self, meterName, values):
+    def insertDataFromFile(self):
+        """
+
+        :return:
+        """
+        dataFile = open(self.filepath)
+        cnt = 0
+        for line in dataFile:
+            self.insertData(line.rstrip('\n')) if cnt != 0 else None
+            cnt += 1
+
+
+    def insertData(self, values):
         """
         Insert a row of data to the database.
         :param values: String of raw values from the source CSV files.
         :return: Boolean indicating success or failure.
         """
-        sql = 'INSERT INTO "{0}" ({1}) VALUES( {2},{3})'.format(
+        if not values:
+            return False
+        sql = 'INSERT INTO "{0}" ({1}) VALUES({2},{3})'.format(
             self.meterDataTable,
             ','.join("\"" + c + "\"" for c in self.columns),
-            self.meterID(meterName), self.sqlFormattedValues(values))
+            self.meterID(self.meterName), self.sqlFormattedValues(values))
         self.logger.log('sql {}'.format(sql), 'debug')
         if self.dbUtil.executeSQL(self.cursor, sql,
                                   exitOnFail = self.exitOnError):
@@ -174,6 +188,7 @@ class SingleFileLoader(object):
         The meter name is the name of the containing folder.
         :return:
         """
+        # @todo validate meter name
         return os.path.dirname(self.filepath)
 
 
@@ -235,6 +250,7 @@ class SingleFileLoader(object):
             return int(id)
         else:
             return __makeNewMeter(meterName)
+
 
 if __name__ == '__main__':
     processCommandLineArguments()
