@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Inserted a single file of meter data.
+Inserts a single file of meter data.
 
 Usage:
 
@@ -27,6 +27,7 @@ import sys
 
 
 commandLineArgs = None
+COMMIT_INTERVAL = 1000
 
 
 def processCommandLineArguments():
@@ -148,7 +149,7 @@ class SingleFileLoader(object):
         self.logger.log('loading data from {}'.format(dataFile))
         for line in dataFile:
             self.insertData(line.rstrip('\n')) if cnt != 1 else None
-            if cnt % 1000 == 0:
+            if cnt % COMMIT_INTERVAL == 0:
                 self.conn.commit()
                 self.logger.log('committing at {}'.format(cnt),'debug')
                 sys.stdout.flush()
@@ -163,16 +164,17 @@ class SingleFileLoader(object):
         :param values: String of raw values from the source CSV files.
         :return: Boolean indicating success or failure.
         """
-        if not values:
+
+        def badData(values):
+            if len(self.dbColumns) != len(values.split(',')):
+                return True
+            return False
+
+        if not values or badData(values):
             return False
 
         if self.removeDupe(values):
             self.logger.log('duplicate found', 'info')
-
-        dbColCnt = len(self.dbColumns)
-        valueCnt = len(values.split(','))
-        # self.logger.log('cols {} vals {}'.format(dbColCnt, valueCnt),'debug')
-        assert dbColCnt - 1 == valueCnt # DB column list has a col for meter ID.
 
         sql = 'INSERT INTO "{0}" ({1}) VALUES({2},{3})'.format(
             self.meterDataTable,
@@ -211,11 +213,11 @@ class SingleFileLoader(object):
         sql = 'SELECT time_utc FROM "{0}" WHERE meter_id = {1} AND time_utc = ' \
               '{2}'.format(
             self.meterDataTable, meterID, timeUTC)
-        # self.logger.log('sql {}'.format(sql), 'debug')
+
         if self.dbUtil.executeSQL(self.cursor, sql,
                                   exitOnFail = self.exitOnError):
             rows = self.cursor.fetchone()
-            # self.logger.log('rows {}'.format(rows),'debug')
+
             if rows and len(rows) == 1:
                 if deleteDupe(meterID, timeUTC):
                     return True
@@ -250,7 +252,6 @@ class SingleFileLoader(object):
             return str(x).replace('"', "'")
 
 
-        # self.logger.log('values: {}'.format(values.split(',')), 'debug')
         return makeSingleQuotes(values.split(',')[self.timestampColumn])
 
     def meterName(self):
@@ -314,9 +315,7 @@ class SingleFileLoader(object):
             else:
                 return None
 
-
         id = __meterID(meterName)
-        # self.logger.log('id {}'.format(id))
 
         # Python 3: if isinstance( id, int ):
         if isinstance(id, ( int, long )):

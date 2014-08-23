@@ -2,6 +2,9 @@
 # -*- coding: utf-8 -*-
 
 __author__ = 'Daniel Zhang (張道博)'
+__copyright__ = 'Copyright (c) 2014, University of Hawaii Smart Energy Project'
+__license__ = 'https://raw.github.com/Hawaii-Smart-Energy-Project/Smart-Grid' \
+              '-PV-Inverter/master/BSD-LICENSE.txt'
 
 import unittest
 from insertSingleMeterDataFile import SingleFileLoader
@@ -42,7 +45,7 @@ class SingleFileLoaderTester(unittest.TestCase):
 
 
     def test_columns(self):
-        self.assertEquals(len(self.inserter.columns), 76)
+        self.assertEquals(len(self.inserter.dbColumns), 76)
 
 
     def test_insert_data(self):
