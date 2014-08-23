@@ -151,7 +151,7 @@ class SingleFileLoader(object):
             self.insertData(line.rstrip('\n')) if cnt != 1 else None
             if cnt % COMMIT_INTERVAL == 0:
                 self.conn.commit()
-                self.logger.log('committing at {}'.format(cnt),'debug')
+                # self.logger.log('committing at {}'.format(cnt),'debug')
                 sys.stdout.flush()
             cnt += 1
         self.conn.commit()
@@ -180,7 +180,7 @@ class SingleFileLoader(object):
             self.meterDataTable,
             ','.join("\"" + c + "\"" for c in self.dbColumns),
             self.meterID(self.meterName()), self.sqlFormattedValues(values))
-        # self.logger.log('sql {}'.format(sql), 'debug')
+
         if self.dbUtil.executeSQL(self.cursor, sql,
                                   exitOnFail = self.exitOnError):
             if commitOnEvery:
