@@ -71,7 +71,7 @@ class SingleFileLoader(object):
         self.cursor = self.conn.cursor()
         self.meterDataTable = "MeterData"
         self.exitOnError = True
-        self.columns = [
+        self.dbColumns = [
             "meter_id", "time_utc", "error", "lowalarm", "highalarm",
             "Accumulated Real Energy Net (kWh)",
             "Real Energy Quadrants 1 & 4, Import (kWh)",
@@ -133,6 +133,7 @@ class SingleFileLoader(object):
             "Current, Phase C (Amps)"
         ]
         self.filepath = filepath
+        self.timestampColumn = 0 # timestamp col in the raw data
 
 
     def insertDataFromFile(self):
@@ -146,8 +147,8 @@ class SingleFileLoader(object):
         # @todo handle io errors
         self.logger.log('loading data from {}'.format(dataFile))
         for line in dataFile:
-            self.insertData(line.rstrip('\n')) if cnt != 0 else None
-            if cnt % 10000 == 0:
+            self.insertData(line.rstrip('\n')) if cnt != 1 else None
+            if cnt % 1000 == 0:
                 self.conn.commit()
                 self.logger.log('committing at {}'.format(cnt),'debug')
                 sys.stdout.flush()
@@ -164,9 +165,18 @@ class SingleFileLoader(object):
         """
         if not values:
             return False
+
+        if self.removeDupe(values):
+            self.logger.log('duplicate found', 'info')
+
+        dbColCnt = len(self.dbColumns)
+        valueCnt = len(values.split(','))
+        # self.logger.log('cols {} vals {}'.format(dbColCnt, valueCnt),'debug')
+        assert dbColCnt - 1 == valueCnt # DB column list has a col for meter ID.
+
         sql = 'INSERT INTO "{0}" ({1}) VALUES({2},{3})'.format(
             self.meterDataTable,
-            ','.join("\"" + c + "\"" for c in self.columns),
+            ','.join("\"" + c + "\"" for c in self.dbColumns),
             self.meterID(self.meterName()), self.sqlFormattedValues(values))
         # self.logger.log('sql {}'.format(sql), 'debug')
         if self.dbUtil.executeSQL(self.cursor, sql,
@@ -178,21 +188,70 @@ class SingleFileLoader(object):
             return False
 
 
+    def removeDupe(self, values):
+
+        def deleteDupe(myMeterID, myTimeUTC):
+            sql = 'DELETE FROM "{0}" WHERE meter_id = {1} AND time_utc = {' \
+                  '2}'.format(self.meterDataTable, myMeterID, myTimeUTC)
+            if self.dbUtil.executeSQL(self.cursor, sql,
+                                  exitOnFail = self.exitOnError):
+                return True
+            else:
+                return False
+
+
+        if not values:
+            return False
+
+        meterID = self.meterID(self.meterName())
+        timeUTC = self.timeUTC(values)
+
+        # This is dependendent on the quote style used for time UTC in the
+        # raw data.
+        sql = 'SELECT time_utc FROM "{0}" WHERE meter_id = {1} AND time_utc = ' \
+              '{2}'.format(
+            self.meterDataTable, meterID, timeUTC)
+        # self.logger.log('sql {}'.format(sql), 'debug')
+        if self.dbUtil.executeSQL(self.cursor, sql,
+                                  exitOnFail = self.exitOnError):
+            rows = self.cursor.fetchone()
+            # self.logger.log('rows {}'.format(rows),'debug')
+            if rows and len(rows) == 1:
+                if deleteDupe(meterID, timeUTC):
+                    return True
+                else:
+                    raise Exception(
+                        "Unable to remove dupe for meter ID {}, time UTC {}".format(
+                            meterID, timeUTC))
+        return False
+
+
     def sqlFormattedValues(self, values):
         """
         :param values: String of raw values from the source CSV files.
         :return: String of PostgreSQL compatible values.
         """
 
+
         def makeNULL(x):
             return x == '' and 'NULL' or str(x)
+
 
         def makeSingleQuotes(x):
             return str(x).replace('"', "'")
 
+
         return ','.join(
             map(lambda x: makeSingleQuotes(makeNULL(x)), values.split(',')))
 
+
+    def timeUTC(self, values):
+        def makeSingleQuotes(x):
+            return str(x).replace('"', "'")
+
+
+        # self.logger.log('values: {}'.format(values.split(',')), 'debug')
+        return makeSingleQuotes(values.split(',')[self.timestampColumn])
 
     def meterName(self):
         """
@@ -200,6 +259,9 @@ class SingleFileLoader(object):
         :return:
         """
         # @todo validate meter name
+        def validMeterName(name):
+            pass
+
         return os.path.basename(os.path.dirname(self.filepath))
 
 
