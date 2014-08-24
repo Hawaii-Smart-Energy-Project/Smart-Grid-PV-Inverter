@@ -60,13 +60,20 @@ if __name__ == '__main__':
     logger = SEKLogger(__name__, 'debug')
     processCommandLineArguments()
 
+    paths = pathsToProcess()
+    assert len(paths) >= 1
+
+    logger.log('Loading multi files for meter name {}.'.format(
+        SingleFileLoader(paths[0]).meterName()))
+
 
     def insertData(x):
         logger.log('process {}'.format(str(multiprocessing.current_process())))
         SingleFileLoader(x).insertDataFromFile()
+        logger.log('finished loading {}'.format(x), 'debug')
 
 
     pool = multiprocessing.Pool(MULTIPROCESSING_LIMIT)
-    results = pool.map(insertData, pathsToProcess())
+    results = pool.map(insertData, paths)
     pool.close()
     pool.join()

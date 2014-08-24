@@ -6,7 +6,12 @@ Inserts a single file of meter data.
 
 Usage:
 
-    insertSingleMeterDataFile.py
+    insertSingleMeterDataFile.py --filepath ${FILEPATH}
+
+or
+
+    from insertSingleMeterDataFile import SingleFileLoader
+    loader = SingleFileLoader(${FILEPATH}).insertDataFromFile()
 
 The meter name is by convention the folder name in which the data is contained.
 
@@ -28,6 +33,7 @@ import sys
 
 commandLineArgs = None
 COMMIT_INTERVAL = 1000
+METER_ID_RETRY_COUNT = 3
 
 
 def processCommandLineArguments():
@@ -135,28 +141,29 @@ class SingleFileLoader(object):
         ]
         self.filepath = filepath
         self.timestampColumn = 0 # timestamp col in the raw data
+        self.meterID = self.meterID(self.meterName())
+        assert self.meterID is not None
 
 
-    def insertDataFromFile(self, retryMax = 0, retryCnt = 0):
+    def insertDataFromFile(self):
         """
         Process input file as a stream from the object attribute's filepath.
         :return:
         """
-        dataFile = open(self.filepath)
-        cnt = 1
+        with open(self.filepath) as dataFile:
+            cnt = 1
 
-        # @todo handle io errors
-        self.logger.log('loading data from {}'.format(dataFile))
-        for line in dataFile:
-            self.insertData(line.rstrip('\n')) if cnt != 1 else None
-            if cnt % COMMIT_INTERVAL == 0:
-                self.conn.commit()
-                self.logger.log('committing at {}'.format(cnt),'debug')
-                sys.stdout.flush()
-            cnt += 1
-        self.conn.commit()
-        self.logger.log('committing at {}'.format(cnt),'debug')
-        dataFile.close()
+            # @todo handle io errors
+            self.logger.log('loading data from {}'.format(dataFile))
+            for line in dataFile:
+                self.insertData(line.rstrip('\n')) if cnt != 1 else None
+                if cnt % COMMIT_INTERVAL == 0:
+                    self.conn.commit()
+                    self.logger.log('committing at {}'.format(cnt),'debug')
+                    sys.stdout.flush()
+                cnt += 1
+            self.conn.commit()
+            self.logger.log('committing at {}'.format(cnt),'debug')
 
 
     def insertData(self, values, commitOnEvery = False):
@@ -179,11 +186,11 @@ class SingleFileLoader(object):
         if self.removeDupe(values):
             self.logger.log('duplicate found', 'info')
 
-        sql = 'INSERT INTO "{0}" ({1}) VALUES({2},{3})'.format(
+        sql = 'INSERT INTO "{0}" ({1}) VALUES({2}, {3})'.format(
             self.meterDataTable,
             ','.join("\"" + c + "\"" for c in self.dbColumns),
-            self.meterID(self.meterName()), self.sqlFormattedValues(values))
-        self.logger.log('sql {}'.format(sql), 'debug')
+            self.meterID, self.sqlFormattedValues(values))
+        # self.logger.log('sql {}'.format(sql), 'debug')
 
         if self.dbUtil.executeSQL(self.cursor, sql,
                                   exitOnFail = self.exitOnError):
@@ -209,26 +216,25 @@ class SingleFileLoader(object):
         if not values:
             return False
 
-        meterID = self.meterID(self.meterName())
         timeUTC = self.timeUTC(values)
 
         # This is dependendent on the quote style used for time UTC in the
         # raw data.
         sql = 'SELECT time_utc FROM "{0}" WHERE meter_id = {1} AND time_utc = ' \
               '{2}'.format(
-            self.meterDataTable, meterID, timeUTC)
+            self.meterDataTable, self.meterID, timeUTC)
 
         if self.dbUtil.executeSQL(self.cursor, sql,
                                   exitOnFail = self.exitOnError):
             rows = self.cursor.fetchone()
 
             if rows and len(rows) == 1:
-                if deleteDupe(meterID, timeUTC):
+                if deleteDupe(self.meterID, timeUTC):
                     return True
                 else:
                     raise Exception(
                         "Unable to remove dupe for meter ID {}, time UTC {}".format(
-                            meterID, timeUTC))
+                            self.meterID, timeUTC))
         return False
 
 
@@ -287,7 +293,7 @@ class SingleFileLoader(object):
             sql = 'SELECT meter_id FROM "Meters" WHERE meter_name = \'{' \
                   '}\''.format(name)
             success = self.dbUtil.executeSQL(self.cursor, sql,
-                                             exitOnFail = self.exitOnError)
+                                             exitOnFail = False)
             if success:
                 result = self.cursor.fetchall()
                 assert len(result) == 1 or len(result) == 0
@@ -304,23 +310,27 @@ class SingleFileLoader(object):
             :param name: String of meter name
             :return: Int or None
             """
+            id = __meterID(name)
+            if id:
+                return id
+
             self.logger.log('making new meter', 'debug')
             sql = 'INSERT INTO "Meters" (meter_name) VALUES (\'{}\')'.format(
                 name)
             success = self.dbUtil.executeSQL(self.cursor, sql,
-                                             exitOnFail = self.exitOnError)
+                                             exitOnFail = False)
             self.conn.commit()
             if success:
                 sql = 'SELECT CURRVAL(\'meter_id_seq\')'
                 success = self.dbUtil.executeSQL(self.cursor, sql,
-                                                 exitOnFail = self.exitOnError)
+                                                 exitOnFail = False)
                 if success:
                     return int(self.cursor.fetchall()[0][0])
             else:
                 return None
 
+
         id = __meterID(meterName)
-        # self.logger.log('meter id {}'.format(id), 'debug')
 
         # Python 3: if isinstance( id, int ):
         if isinstance(id, ( int, long )):
