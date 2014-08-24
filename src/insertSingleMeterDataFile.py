@@ -137,7 +137,7 @@ class SingleFileLoader(object):
         self.timestampColumn = 0 # timestamp col in the raw data
 
 
-    def insertDataFromFile(self):
+    def insertDataFromFile(self, retryMax = 0, retryCnt = 0):
         """
         Process input file as a stream from the object attribute's filepath.
         :return:
@@ -151,10 +151,11 @@ class SingleFileLoader(object):
             self.insertData(line.rstrip('\n')) if cnt != 1 else None
             if cnt % COMMIT_INTERVAL == 0:
                 self.conn.commit()
-                # self.logger.log('committing at {}'.format(cnt),'debug')
+                self.logger.log('committing at {}'.format(cnt),'debug')
                 sys.stdout.flush()
             cnt += 1
         self.conn.commit()
+        self.logger.log('committing at {}'.format(cnt),'debug')
         dataFile.close()
 
 
@@ -166,7 +167,9 @@ class SingleFileLoader(object):
         """
 
         def badData(values):
-            if len(self.dbColumns) != len(values.split(',')):
+            # DB cols contain an extra column for the meter ID that is not
+            # found in individual raw data files.
+            if len(self.dbColumns) - 1 != len(values.split(',')):
                 return True
             return False
 
@@ -180,6 +183,7 @@ class SingleFileLoader(object):
             self.meterDataTable,
             ','.join("\"" + c + "\"" for c in self.dbColumns),
             self.meterID(self.meterName()), self.sqlFormattedValues(values))
+        self.logger.log('sql {}'.format(sql), 'debug')
 
         if self.dbUtil.executeSQL(self.cursor, sql,
                                   exitOnFail = self.exitOnError):
@@ -316,6 +320,7 @@ class SingleFileLoader(object):
                 return None
 
         id = __meterID(meterName)
+        # self.logger.log('meter id {}'.format(id), 'debug')
 
         # Python 3: if isinstance( id, int ):
         if isinstance(id, ( int, long )):
@@ -327,3 +332,4 @@ class SingleFileLoader(object):
 if __name__ == '__main__':
     processCommandLineArguments()
     inserter = SingleFileLoader(commandLineArgs.filepath)
+    inserter.insertDataFromFile()

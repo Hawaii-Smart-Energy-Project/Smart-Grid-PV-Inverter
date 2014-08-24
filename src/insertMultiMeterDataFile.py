@@ -19,7 +19,6 @@ __license__ = 'https://raw.github.com/Hawaii-Smart-Energy-Project/Smart-Grid' \
               '-PV-Inverter/master/BSD-LICENSE.txt'
 
 from sek.logger import SEKLogger
-from si_configer import SIConfiger
 import argparse
 from insertSingleMeterDataFile import SingleFileLoader
 import multiprocessing
@@ -29,6 +28,7 @@ import fnmatch
 
 COMMAND_LINE_ARGS = None
 MULTIPROCESSING_LIMIT = 4
+RETRY_COUNT = 2
 
 
 def processCommandLineArguments():
@@ -41,24 +41,6 @@ def processCommandLineArguments():
         description = 'Perform insertion of data contained in multiple files to the SI database.')
     parser.add_argument('--basepath', help = 'A base path from which to process data files.')
     COMMAND_LINE_ARGS = parser.parse_args()
-
-
-class MultiFileLoader(object):
-    """
-    Perform insertion of data contained in multiple files to the Smart
-    Inverter database specified in the site configuration file.
-    """
-
-    def __init__(self, basepath = '', testing = False):
-        """
-        Constructor.
-        :param basepath: String
-        :param testing: Flag indicating if testing mode is on.
-        """
-
-        self.logger = SEKLogger(__name__, 'debug')
-        self.configer = SIConfiger()
-        self.basepath = basepath
 
 
 def pathsToProcess():
