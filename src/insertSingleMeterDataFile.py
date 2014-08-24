@@ -33,7 +33,6 @@ import sys
 
 commandLineArgs = None
 COMMIT_INTERVAL = 1000
-METER_ID_RETRY_COUNT = 3
 
 
 def processCommandLineArguments():
@@ -159,11 +158,11 @@ class SingleFileLoader(object):
                 self.insertData(line.rstrip('\n')) if cnt != 1 else None
                 if cnt % COMMIT_INTERVAL == 0:
                     self.conn.commit()
-                    self.logger.log('committing at {}'.format(cnt),'debug')
+                    self.logger.log('committing at {}'.format(cnt), 'debug')
                     sys.stdout.flush()
                 cnt += 1
             self.conn.commit()
-            self.logger.log('committing at {}'.format(cnt),'debug')
+            self.logger.log('committing at {}'.format(cnt), 'debug')
 
 
     def insertData(self, values, commitOnEvery = False):

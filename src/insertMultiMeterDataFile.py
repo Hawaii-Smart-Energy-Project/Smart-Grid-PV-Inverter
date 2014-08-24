@@ -28,7 +28,6 @@ import fnmatch
 
 COMMAND_LINE_ARGS = None
 MULTIPROCESSING_LIMIT = 4
-RETRY_COUNT = 2
 
 
 def processCommandLineArguments():
