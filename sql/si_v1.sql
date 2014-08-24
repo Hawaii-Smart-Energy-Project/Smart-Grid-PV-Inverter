@@ -33,6 +33,7 @@ SET default_with_oids = false;
 --
 
 CREATE TABLE "MeterData" (
+    inserted timestamp without time zone DEFAULT now(),
     meter_id integer NOT NULL,
     time_utc timestamp without time zone NOT NULL,
     error integer,
