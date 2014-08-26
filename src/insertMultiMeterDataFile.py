@@ -24,10 +24,11 @@ from insertSingleMeterDataFile import SingleFileLoader
 import multiprocessing
 import os
 import fnmatch
+import sys
 
 
 COMMAND_LINE_ARGS = None
-MULTIPROCESSING_LIMIT = 4
+MULTIPROCESSING_LIMIT = 8
 
 
 def processCommandLineArguments():
@@ -50,7 +51,7 @@ def pathsToProcess():
     pathsToProcess = []
     for root, dirnames, filenames in os.walk(COMMAND_LINE_ARGS.basepath):
         for filename in fnmatch.filter(filenames, '*.csv'):
-            logger.log(filename, 'debug')
+            # logger.log(filename, 'debug')
             pathsToProcess.append(os.path.join(root, filename))
     return pathsToProcess
 
@@ -62,8 +63,16 @@ if __name__ == '__main__':
     paths = pathsToProcess()
     assert len(paths) >= 1
 
-    logger.log('Loading multi files for meter name {}.'.format(
-        SingleFileLoader(paths[0]).meterName()))
+    def makeMeters():
+        meters = {}
+        for p in paths:
+            meterName = os.path.basename(os.path.dirname(p))
+            if meterName not in meters:
+                meters[meterName] = 1
+
+        for name in meters.keys():
+            logger.log('Loading multi files for meter name {}.'.format(
+                SingleFileLoader().getMeterID(name)))
 
 
     def insertData(x):
@@ -71,6 +80,7 @@ if __name__ == '__main__':
         SingleFileLoader(x).insertDataFromFile()
         logger.log('finished loading {}'.format(x), 'debug')
 
+    makeMeters()
 
     pool = multiprocessing.Pool(MULTIPROCESSING_LIMIT)
     results = pool.map(insertData, paths)

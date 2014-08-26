@@ -138,10 +138,14 @@ class SingleFileLoader(object):
             "Current, Phase A (Amps)", "Current, Phase B (Amps)",
             "Current, Phase C (Amps)"
         ]
-        self.filepath = filepath
+        if filepath == '':
+            self.filepath = None
+            self.meterID = None
+        else:
+            self.filepath = filepath
+            self.meterID = self.getMeterID(self.meterName())
+            assert self.meterID is not None
         self.timestampColumn = 0 # timestamp col in the raw data
-        self.meterID = self.meterID(self.meterName())
-        assert self.meterID is not None
 
 
     def insertDataFromFile(self):
@@ -263,6 +267,7 @@ class SingleFileLoader(object):
 
         return makeSingleQuotes(values.split(',')[self.timestampColumn])
 
+
     def meterName(self):
         """
         The meter name is the name of the containing folder.
@@ -272,10 +277,11 @@ class SingleFileLoader(object):
         def validMeterName(name):
             pass
 
+
         return os.path.basename(os.path.dirname(self.filepath))
 
 
-    def meterID(self, meterName):
+    def getMeterID(self, meterName):
         """
         Given a meter name, return its meter ID.
         If the meter name has no ID, create a new one and return it.
