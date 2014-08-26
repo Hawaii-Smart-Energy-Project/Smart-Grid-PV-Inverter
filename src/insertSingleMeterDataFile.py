@@ -79,7 +79,6 @@ class SingleFileLoader(object):
             dbPassword = self.configer.configOptionValue('Database',
                                                          'db_password')).connectDB()
         self.cursor = self.conn.cursor()
-        self.meterDataTable = "MeterData"
         self.exitOnError = True
         self.dbColumns = [
             "meter_id", "time_utc", "error", "lowalarm", "highalarm",
@@ -142,35 +141,47 @@ class SingleFileLoader(object):
             "Current, Phase A (Amps)", "Current, Phase B (Amps)",
             "Current, Phase C (Amps)"
         ]
+
+        # An empty file path is used during creating of meter table entries.
         if filepath == '':
             self.filepath = None
             self.meterID = None
+            self.meterDataTable = None
         else:
             self.filepath = filepath
             self.meterID = self.getMeterID(self.meterName())
             assert self.meterID is not None
+            self.meterDataTable = "MeterData_{}".format(self.meterName())
+            # @todo Test existence of meter data table.
         self.timestampColumn = 0 # timestamp col in the raw data
 
 
     def insertDataFromFile(self):
         """
         Process input file as a stream from the object attribute's filepath.
-        :return:
+        :return: Int count of inserted records.
         """
+
         with open(self.filepath) as dataFile:
-            cnt = 1
+            lineCnt = 1
+            insertCnt = 0
+            result = False
 
             # @todo handle io errors
             self.logger.log('loading data from {}'.format(dataFile))
             for line in dataFile:
-                self.insertData(line.rstrip('\n')) if cnt != 1 else None
-                if cnt % COMMIT_INTERVAL == 0:
+                result = self.insertData(
+                    line.rstrip('\n')) if lineCnt != 1 else False
+                if insertCnt > 0 and insertCnt % COMMIT_INTERVAL == 0:
                     self.conn.commit()
-                    self.logger.log('committing at {}'.format(cnt), 'debug')
+                    self.logger.log('committing at {}'.format(insertCnt),
+                                    'debug')
                     sys.stdout.flush()
-                cnt += 1
+                insertCnt += 1 if result else 0
+                lineCnt += 1
             self.conn.commit()
-            self.logger.log('committing at {}'.format(cnt), 'debug')
+            self.logger.log('committing at {}'.format(insertCnt), 'debug')
+        return insertCnt
 
 
     def insertData(self, values, commitOnEvery = False):
