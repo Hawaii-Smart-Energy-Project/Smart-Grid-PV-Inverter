@@ -13,6 +13,10 @@ or
     from insertSingleMeterDataFile import SingleFileLoader
     loader = SingleFileLoader(${FILEPATH}).insertDataFromFile()
 
+or for meter creation or retrieval:
+
+    loader = SingleFileLoader().getMeterID(${METER_NAME})
+
 The meter name is by convention the folder name in which the data is contained.
 
 """
