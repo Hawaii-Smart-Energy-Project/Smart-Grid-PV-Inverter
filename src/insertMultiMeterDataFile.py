@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Insert multiple data files of meter data by recursively locating available files.
+Insert multiple data files of meter data by recursively locating available
+files.
 
 Usage:
 
@@ -37,8 +38,10 @@ def processCommandLineArguments():
 
     global COMMAND_LINE_ARGS
     parser = argparse.ArgumentParser(
-        description = 'Perform insertion of data contained in multiple files to the SI database.')
-    parser.add_argument('--basepath', help = 'A base path from which to process data files.')
+        description = 'Perform insertion of data contained in multiple files '
+                      'to the SI database.')
+    parser.add_argument('--basepath', required = True,
+                        help = 'A base path from which to process data files.')
     COMMAND_LINE_ARGS = parser.parse_args()
 
 
@@ -47,10 +50,9 @@ if __name__ == '__main__':
     siUtil = SIUtil()
     processCommandLineArguments()
 
-
     paths = siUtil.pathsToProcess(COMMAND_LINE_ARGS.basepath)
     lenPaths = len(paths)
-    finCnt = 0 # finished loading file count
+    finCnt = 0  # finished loading file count
     rowCnt = 0
     assert len(paths) >= 1
 
@@ -71,6 +73,7 @@ if __name__ == '__main__':
         logger.log('finished loading {}, total finished {}/{}'.format(x, finCnt,
                                                                       lenPaths),
                    'debug')
+
 
     makeMeters()
 

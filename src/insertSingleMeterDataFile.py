@@ -48,7 +48,7 @@ def processCommandLineArguments():
     parser = argparse.ArgumentParser(
         description = 'Perform insertion of data contained in a single file to '
                       'the SI database.')
-    parser.add_argument('--filepath',
+    parser.add_argument('--filepath', required = True,
                         help = 'A filepath, including the filename, '
                                'for a file containing data to be inserted.')
     commandLineArgs = parser.parse_args()

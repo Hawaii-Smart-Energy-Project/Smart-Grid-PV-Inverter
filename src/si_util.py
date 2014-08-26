@@ -37,7 +37,7 @@ class SIUtil(object):
         :return: List
         """
         meters = {}
-        for p in self.pathsToProcess():
+        for p in self.pathsToProcess(basepath):
             meterName = os.path.basename(os.path.dirname(p))
             if meterName not in meters:
                 meters[meterName] = 1
