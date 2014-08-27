@@ -74,18 +74,6 @@ if __name__ == '__main__':
             logger.log('Loading multi files for meter name {}.'.format(
                 SingleFileLoader().getMeterID(name)))
 
-
-    def insertData(x):
-        global finCnt
-        global lenPaths
-        logger.log('process {}'.format(str(multiprocessing.current_process())))
-        # logger.log('loading {} out of {}'.format(paths.index(x), lenPaths))
-        SingleFileLoader(x).insertDataFromFile()
-        finCnt += 1
-        logger.log('finished loading {}, total finished {}/{}'.format(x, finCnt,
-                                                                      lenPaths),
-                   'debug')
-
     makeMeters()
 
     if MULTICORE:
