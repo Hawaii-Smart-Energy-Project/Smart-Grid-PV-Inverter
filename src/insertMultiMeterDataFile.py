@@ -29,6 +29,36 @@ from si_util import SIUtil
 COMMAND_LINE_ARGS = None
 MULTIPROCESSING_LIMIT = 6
 MULTICORE = True
+RESULT_CNTS = {}
+PATHS_PROCESSED_CNT = 0
+TOTAL_PATHS = 0
+
+
+class RowPathCounter(object):
+    def __init__(self, rowValue = 0, pathValue = 0):
+        self.rows = multiprocessing.Value('i', rowValue)
+        self.paths = multiprocessing.Value('i', pathValue)
+        self.lock = multiprocessing.Lock()
+
+
+    def incrementPaths(self):
+        with self.lock:
+            self.paths.value += 1
+
+
+    def addRows(self, count):
+        with self.lock:
+            self.rows.value += count
+
+
+    def rowValue(self):
+        with self.lock:
+            return self.rows.value
+
+
+    def pathValue(self):
+        with self.lock:
+            return self.paths.value
 
 
 def processCommandLineArguments():
@@ -46,26 +76,35 @@ def processCommandLineArguments():
 
 
 def do_work(path):
-    logger.log('process {}'.format(str(multiprocessing.current_process())))
-    SingleFileLoader(path).insertDataFromFile()
+    global PATHS_PROCESSED_CNT
+    global RESULT_CNTS
+    global TOTAL_PATHS
+    loader = SingleFileLoader(path)
+    name = loader.meterName()
+    logger.log('process {} for meter {}'.format(str(multiprocessing.current_process()), name),
+               'debug')
+    return (loader.insertDataFromFile(), name)
 
 
-def worker():
+def worker(counter):
     for item in iter(q.get, None):
-        do_work(item)
+        (result, name) = do_work(item)
+        counter.addRows(result)
+        counter.incrementPaths()
+        logger.log('{}: row counter {}, path counter {} out of {}'.format(name,
+                                                                          counter.rowValue(),
+                                                                          counter.pathValue(),
+                                                                          TOTAL_PATHS))
         q.task_done()
     q.task_done()
 
 
 if __name__ == '__main__':
-    logger = SEKLogger(__name__, 'debug')
+    logger = SEKLogger(__name__, 'info')
     siUtil = SIUtil()
     processCommandLineArguments()
-
     paths = siUtil.pathsToProcess(COMMAND_LINE_ARGS.basepath)
-    lenPaths = len(paths)
-    finCnt = 0  # finished loading file count
-    rowCnt = 0
+    TOTAL_PATHS = len(paths)
     assert len(paths) >= 1
 
 
@@ -73,17 +112,20 @@ if __name__ == '__main__':
         for name in siUtil.meters(basepath = COMMAND_LINE_ARGS.basepath):
             logger.log('Loading multi files for meter name {}.'.format(
                 SingleFileLoader().getMeterID(name)))
+            RESULT_CNTS[name] = 0
 
     makeMeters()
 
     if MULTICORE:
+        counter = RowPathCounter(0, 0)
 
         q = multiprocessing.JoinableQueue(MULTIPROCESSING_LIMIT)
 
         try:
             procs = []  # process pool
             for i in range(MULTIPROCESSING_LIMIT):
-                procs.append(multiprocessing.Process(target = worker))
+                procs.append(multiprocessing.Process(target = worker, args = (
+                    counter,)))
                 procs[-1].daemon = True
                 procs[-1].start()
 
@@ -106,11 +148,17 @@ if __name__ == '__main__':
     else:
         # Single core:
         for p in paths:
-            rowCnt += SingleFileLoader(p).insertDataFromFile()
-            finCnt += 1
-            logger.log(
-                'finished loading {}, total finished {}/{}'.format(p, finCnt,
-                                                                   lenPaths),
-                'debug')
-        logger.log('row cnt {}'.format(rowCnt))
-
+            loader = SingleFileLoader(p)
+            name = loader.meterName()
+            if name in RESULT_CNTS:
+                RESULT_CNTS[name] += loader.insertDataFromFile()
+            else:
+                RESULT_CNTS[name] = loader.insertDataFromFile()
+            PATHS_PROCESSED_CNT += 1
+            logger.log('Result summary:')
+            for k in RESULT_CNTS.keys():
+                logger.log('key {} = {}, paths processed {} out of {}'.format(k,
+                                                                              RESULT_CNTS[
+                                                                                  k],
+                                                                              PATHS_PROCESSED_CNT,
+                                                                              TOTAL_PATHS))

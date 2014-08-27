@@ -67,7 +67,7 @@ class SingleFileLoader(object):
         :param testing: Flag indicating if testing mode is on.
         """
 
-        self.logger = SEKLogger(__name__, 'debug')
+        self.logger = SEKLogger(__name__, 'info')
         self.configer = SIConfiger()
         self.dbUtil = SEKDBUtil()
         self.logger.log('making new db conn for filepath {}'.format(filepath), 'debug')
@@ -166,14 +166,13 @@ class SingleFileLoader(object):
         Process input file as a stream from the object attribute's filepath.
         :return: Int count of inserted records.
         """
-
+        insertCnt = 0
         with open(self.filepath) as dataFile:
             lineCnt = 1
-            insertCnt = 0
             result = False
 
             # @todo handle io errors
-            self.logger.log('loading data from {}'.format(dataFile))
+            self.logger.log('loading data from {}'.format(dataFile), 'debug')
             for line in dataFile:
                 result = self.insertData(
                     line.rstrip('\n')) if lineCnt != 1 else False
@@ -182,7 +181,8 @@ class SingleFileLoader(object):
                     self.logger.log('committing at {}'.format(insertCnt),
                                     'debug')
                     sys.stdout.flush()
-                insertCnt += 1 if result else 0
+                if result:
+                    insertCnt += 1
                 lineCnt += 1
             self.conn.commit()
             self.logger.log('final commit at {}'.format(insertCnt), 'debug')
@@ -207,13 +207,12 @@ class SingleFileLoader(object):
             return False
 
         if self.removeDupe(values):
-            self.logger.log('duplicate found', 'info')
+            self.logger.log('duplicate found', 'debug')
 
         sql = 'INSERT INTO "{0}" ({1}) VALUES({2}, {3})'.format(
             self.meterDataTable,
             ','.join("\"" + c + "\"" for c in self.dbColumns),
             self.meterID, self.sqlFormattedValues(values))
-        # self.logger.log('sql {}'.format(sql), 'debug')
 
         if self.dbUtil.executeSQL(self.cursor, sql,
                                   exitOnFail = self.exitOnError):
