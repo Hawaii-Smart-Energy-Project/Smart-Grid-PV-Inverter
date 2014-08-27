@@ -25,11 +25,12 @@ from insertSingleMeterDataFile import SingleFileLoader
 import multiprocessing
 import sys
 from si_util import SIUtil
+import re
 
 
 COMMAND_LINE_ARGS = None
 MULTIPROCESSING_LIMIT = 6
-
+MULTICORE = True
 
 def processCommandLineArguments():
     """
@@ -45,6 +46,23 @@ def processCommandLineArguments():
     COMMAND_LINE_ARGS = parser.parse_args()
 
 
+def worker(path, returnDict):
+    """
+    This is a multiprocessing worker for inserting data.
+
+    :param path: A path containing data to be inserted.
+    :param returnDict: Process results, in the form of a log, are returned to
+    the caller via this dictionary during multiprocessing.
+    """
+
+    result = SingleFileLoader(path).insertDataFromFile()
+    pattern = 'Process-(\d+),'
+    jobString = str(multiprocessing.current_process())
+    match = re.search(pattern, jobString)
+    assert match.group(1) is not None, "Process ID was matched."
+    returnDict[match.group(1)] = result
+
+
 if __name__ == '__main__':
     logger = SEKLogger(__name__, 'debug')
     siUtil = SIUtil()
@@ -58,7 +76,7 @@ if __name__ == '__main__':
 
 
     def makeMeters():
-        for name in siUtil.meters():
+        for name in siUtil.meters(basepath = COMMAND_LINE_ARGS.basepath):
             logger.log('Loading multi files for meter name {}.'.format(
                 SingleFileLoader().getMeterID(name)))
 
@@ -74,21 +92,41 @@ if __name__ == '__main__':
                                                                       lenPaths),
                    'debug')
 
-
     makeMeters()
 
-    # pool = multiprocessing.Pool(MULTIPROCESSING_LIMIT)
-    # results = pool.map(insertData, paths)
-    # pool.close()
-    # pool.join()
 
-    # Single core:
-    for p in paths:
-        rowCnt += SingleFileLoader(p).insertDataFromFile()
-        finCnt += 1
-        logger.log('finished loading {}, total finished {}/{}'.format(p, finCnt,
-                                                                      lenPaths),
-                   'debug')
+    if MULTICORE:
 
-    logger.log('row cnt {}'.format(rowCnt))
+        try:
+            procs = []
+            manager = multiprocessing.Manager()
+            returnDict = manager.dict()
+
+            for path in paths:
+                procs.append(multiprocessing.Process(target = worker,
+                                                     args = (path, returnDict)))
+                procs[-1].daemon = True
+                procs[-1].start()
+
+            for proc in procs:
+                proc.join()
+
+            for key in returnDict.keys():
+                sys.stderr.write("Process %s results:\n" % key)
+                sys.stderr.write(returnDict[key])
+                sys.stderr.write("\n")
+
+        except Exception as detail:
+            logger.log("exception {}".format(detail))
+
+    else:
+        # Single core:
+        for p in paths:
+            rowCnt += SingleFileLoader(p).insertDataFromFile()
+            finCnt += 1
+            logger.log(
+                'finished loading {}, total finished {}/{}'.format(p, finCnt,
+                                                                   lenPaths),
+                'debug')
+        logger.log('row cnt {}'.format(rowCnt))
 

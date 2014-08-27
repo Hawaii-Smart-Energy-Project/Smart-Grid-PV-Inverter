@@ -36,6 +36,9 @@ class SIUtil(object):
         :param basepath: String
         :return: List
         """
+        if basepath == '':
+            raise Exception("Basepath not given.")
+
         meters = {}
         for p in self.pathsToProcess(basepath):
             meterName = os.path.basename(os.path.dirname(p))
