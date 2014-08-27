@@ -23,14 +23,13 @@ from sek.logger import SEKLogger
 import argparse
 from insertSingleMeterDataFile import SingleFileLoader
 import multiprocessing
-import sys
 from si_util import SIUtil
-import re
 
 
 COMMAND_LINE_ARGS = None
 MULTIPROCESSING_LIMIT = 6
 MULTICORE = True
+
 
 def processCommandLineArguments():
     """
@@ -46,21 +45,16 @@ def processCommandLineArguments():
     COMMAND_LINE_ARGS = parser.parse_args()
 
 
-def worker(path, returnDict):
-    """
-    This is a multiprocessing worker for inserting data.
+def do_work(path):
+    logger.log('process {}'.format(str(multiprocessing.current_process())))
+    SingleFileLoader(path).insertDataFromFile()
 
-    :param path: A path containing data to be inserted.
-    :param returnDict: Process results, in the form of a log, are returned to
-    the caller via this dictionary during multiprocessing.
-    """
 
-    result = SingleFileLoader(path).insertDataFromFile()
-    pattern = 'Process-(\d+),'
-    jobString = str(multiprocessing.current_process())
-    match = re.search(pattern, jobString)
-    assert match.group(1) is not None, "Process ID was matched."
-    returnDict[match.group(1)] = result
+def worker():
+    for item in iter(q.get, None):
+        do_work(item)
+        q.task_done()
+    q.task_done()
 
 
 if __name__ == '__main__':
@@ -94,27 +88,29 @@ if __name__ == '__main__':
 
     makeMeters()
 
-
     if MULTICORE:
 
-        try:
-            procs = []
-            manager = multiprocessing.Manager()
-            returnDict = manager.dict()
+        q = multiprocessing.JoinableQueue(MULTIPROCESSING_LIMIT)
 
-            for path in paths:
-                procs.append(multiprocessing.Process(target = worker,
-                                                     args = (path, returnDict)))
+        try:
+            procs = []  # process pool
+            for i in range(MULTIPROCESSING_LIMIT):
+                procs.append(multiprocessing.Process(target = worker))
                 procs[-1].daemon = True
                 procs[-1].start()
 
-            for proc in procs:
-                proc.join()
+            for path in paths:
+                q.put(path)
 
-            for key in returnDict.keys():
-                sys.stderr.write("Process %s results:\n" % key)
-                sys.stderr.write(returnDict[key])
-                sys.stderr.write("\n")
+            q.join()
+
+            for p in procs:
+                q.put(None)
+
+            q.join()
+
+            for p in procs:
+                p.join()
 
         except Exception as detail:
             logger.log("exception {}".format(detail))

@@ -70,14 +70,19 @@ class SingleFileLoader(object):
         self.logger = SEKLogger(__name__, 'debug')
         self.configer = SIConfiger()
         self.dbUtil = SEKDBUtil()
-        self.conn = SEKDBConnector(
-            dbName = self.configer.configOptionValue('Database', 'db_name'),
-            dbHost = self.configer.configOptionValue('Database', 'db_host'),
-            dbPort = self.configer.configOptionValue('Database', 'db_port'),
-            dbUsername = self.configer.configOptionValue('Database',
-                                                         'db_username'),
-            dbPassword = self.configer.configOptionValue('Database',
-                                                         'db_password')).connectDB()
+        self.logger.log('making new db conn for filepath {}'.format(filepath), 'debug')
+        sys.stdout.flush()
+        try:
+            self.conn = SEKDBConnector(
+                dbName = self.configer.configOptionValue('Database', 'db_name'),
+                dbHost = self.configer.configOptionValue('Database', 'db_host'),
+                dbPort = self.configer.configOptionValue('Database', 'db_port'),
+                dbUsername = self.configer.configOptionValue('Database',
+                                                             'db_username'),
+                dbPassword = self.configer.configOptionValue('Database',
+                                                             'db_password')).connectDB()
+        except:
+            raise Exception("Unable to get DB connection.")
         self.cursor = self.conn.cursor()
         self.exitOnError = True
         self.dbColumns = [
@@ -180,7 +185,7 @@ class SingleFileLoader(object):
                 insertCnt += 1 if result else 0
                 lineCnt += 1
             self.conn.commit()
-            self.logger.log('committing at {}'.format(insertCnt), 'debug')
+            self.logger.log('final commit at {}'.format(insertCnt), 'debug')
         return insertCnt
 
 
@@ -357,6 +362,10 @@ class SingleFileLoader(object):
             return int(id)
         else:
             return __makeNewMeter(meterName)
+
+    def __del__(self):
+        self.logger.log('destroying single file inserter', 'debug')
+        self.conn.close()
 
 
 if __name__ == '__main__':
