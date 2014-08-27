@@ -37,6 +37,7 @@ def processCommandLineArguments():
 if __name__ == '__main__':
     processCommandLineArguments()
     tableBase = "MeterData"
+    pkey = 'meter_id, time_utc'
     logger = SEKLogger(__name__, 'debug')
     configer = SIConfiger()
     dbUtil = SEKDBUtil()
@@ -49,10 +50,16 @@ if __name__ == '__main__':
                                                 'db_password')).connectDB()
     cursor = conn.cursor()
 
+    tableOwner = configer.configOptionValue('Database', 'table_owner')
     for meterName in SIUtil().meters(basepath = COMMAND_LINE_ARGS.basepath):
         logger.log('creating table {}'.format(tableBase + "_" + meterName))
         sql = 'CREATE TABLE "{1}_{0}" ( CHECK ( meter_id = meter_id(\'{' \
-              '0}\'))) INHERITS ("{1}")'.format(meterName, tableBase)
+              '0}\'))) INHERITS ("{1}"); ALTER TABLE ONLY "{1}_{0}" ADD ' \
+              'CONSTRAINT "{1}_{0}_pkey" PRIMARY KEY ({3}); ALTER TABLE ONLY ' \
+              '"{1}_{0}" ADD CONSTRAINT meter_id_fkey FOREIGN KEY (meter_id) ' \
+              'REFERENCES "Meters"(meter_id) ON UPDATE CASCADE ON DELETE ' \
+              'CASCADE; ALTER TABLE "{1}_{0}" OWNER TO {2}'.format(
+            meterName, tableBase, tableOwner, pkey)
         if dbUtil.executeSQL(cursor, sql, exitOnFail = False):
             conn.commit()
         else:
