@@ -77,6 +77,9 @@ def processCommandLineArguments():
                       'to the SI database.')
     parser.add_argument('--basepath', required = True,
                         help = 'A base path from which to process data files.')
+    parser.add_argument('--process_count', type = int, required = False,
+                        help = 'The number of processes to use for '
+                               'multiprocessing.')
     COMMAND_LINE_ARGS = parser.parse_args()
 
 
@@ -117,6 +120,8 @@ if __name__ == '__main__':
     logger = SEKLogger(__name__, 'debug')
     siUtil = SIUtil()
     processCommandLineArguments()
+    if COMMAND_LINE_ARGS.process_count:
+        MULTIPROCESSING_LIMIT = COMMAND_LINE_ARGS.process_count
     paths = siUtil.pathsToProcess(COMMAND_LINE_ARGS.basepath)
     TOTAL_PATHS = len(paths)
     assert len(paths) >= 1
