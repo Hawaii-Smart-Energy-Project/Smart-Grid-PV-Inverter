@@ -9,3 +9,16 @@ over 21 separate meters.
 This software provides loading of this data to a PostgreSQL database using
 multicore insertion to a set of table partitions where one partition is assigned
 to each meter.
+
+## Installation
+
+TBW
+
+### External Dependencies
+
+* [Smart Energy Kit](https://github.com/Hawaii-Smart-Energy-Project/Smart-Energy-Kit)
+
+## Configuration
+
+TBW
+
