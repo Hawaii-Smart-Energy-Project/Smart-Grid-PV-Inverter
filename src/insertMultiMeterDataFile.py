@@ -98,7 +98,7 @@ def do_work(path, counter):
 def worker(myQ, counter):
     logger.log('worker', 'debug')
     try:
-        for item in iter(myQ.get_nowait, None):
+        for item in iter(myQ.get, None):
             logger.log('queue {}'.format(myQ))
             (result, name) = do_work(item, counter)
             myQ.task_done()
@@ -109,9 +109,8 @@ def worker(myQ, counter):
                                                                            counter.pathValue(),
                                                                            TOTAL_PATHS))
     except Exception as detail:
-        logger.log('Exception in worker: {}'.format(detail), 'error')
-
-    myQ.task_done()
+        logger.log('Exception in worker in process {} for item {}: {}'.format(
+            str(multiprocessing.current_process()), item, detail), 'error')
 
 
 if __name__ == '__main__':
@@ -140,7 +139,6 @@ if __name__ == '__main__':
             q = multiprocessing.JoinableQueue(MULTIPROCESSING_LIMIT)
             try:
 
-
                 procs = []  # process pool
                 for i in range(MULTIPROCESSING_LIMIT):
                     procs.append(multiprocessing.Process(target = worker,
@@ -148,7 +146,6 @@ if __name__ == '__main__':
                                                          q, counter,)))
                     procs[-1].daemon = True
                     procs[-1].start()
-
 
                 for path in myPaths:
                     q.put(path)
@@ -163,11 +160,12 @@ if __name__ == '__main__':
                 for p in procs:
                     p.join()
 
-
             except Exception as detail:
                 logger.log("exception {}".format(detail))
 
         multiProcess(paths)
+        logger.log('final row count {}'.format(counter.rowValue()))
+        assert counter.pathValue() == TOTAL_PATHS
 
     else:
         # Single core:

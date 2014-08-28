@@ -33,6 +33,7 @@ from sek.db_connector import SEKDBConnector
 import argparse
 import os
 import sys
+import re
 
 
 commandLineArgs = None
@@ -84,7 +85,7 @@ class SingleFileLoader(object):
         except:
             raise Exception("Unable to get DB connection.")
         self.cursor = self.conn.cursor()
-        self.exitOnError = True
+        self.exitOnError = False
         self.dbColumns = [
             "meter_id", "time_utc", "error", "lowalarm", "highalarm",
             "Accumulated Real Energy Net (kWh)",
@@ -204,13 +205,21 @@ class SingleFileLoader(object):
             # found in individual raw data files.
             if len(self.dbColumns) - 1 != len(values.split(',')):
                 return True
+
+            if not re.match('^\"\d+-\d+-\d+\s\d+:\d+:\d+\"',
+                            values.split(',')[0]):
+                self.logger.log('bad date {}'.format(values.split(',')[0]),
+                                'error')
+                return True
+
             return False
+
 
         if not values or badData(values):
             return False
 
         if self.removeDupe(values):
-            self.logger.log('duplicate found', 'debug')
+            self.logger.log('duplicate found', 'silent')
 
         sql = 'INSERT INTO "{0}" ({1}) VALUES({2}, {3})'.format(
             self.meterDataTable,
