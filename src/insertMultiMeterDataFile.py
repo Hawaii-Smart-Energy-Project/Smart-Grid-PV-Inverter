@@ -24,6 +24,7 @@ import argparse
 from insertSingleMeterDataFile import SingleFileLoader
 import multiprocessing
 from si_util import SIUtil
+import sys
 
 
 COMMAND_LINE_ARGS = None
@@ -42,21 +43,25 @@ class RowPathCounter(object):
 
 
     def incrementPaths(self):
+        logger.log('increment paths', 'debug')
         with self.lock:
             self.paths.value += 1
 
 
     def addRows(self, count):
+        logger.log('add rows', 'debug')
         with self.lock:
             self.rows.value += count
 
 
     def rowValue(self):
+        logger.log('row val', 'debug')
         with self.lock:
             return self.rows.value
 
 
     def pathValue(self):
+        logger.log('path val', 'debug')
         with self.lock:
             return self.paths.value
 
@@ -75,32 +80,42 @@ def processCommandLineArguments():
     COMMAND_LINE_ARGS = parser.parse_args()
 
 
-def do_work(path):
-    global PATHS_PROCESSED_CNT
-    global RESULT_CNTS
-    global TOTAL_PATHS
+def do_work(path, counter):
+    logger.log('do work', 'debug')
     loader = SingleFileLoader(path)
     name = loader.meterName()
-    logger.log('process {} for meter {}'.format(str(multiprocessing.current_process()), name),
-               'debug')
-    return (loader.insertDataFromFile(), name)
+    logger.log('process {} for meter {} with path {}'.format(
+        str(multiprocessing.current_process()), name, path), 'debug')
+    result = loader.insertDataFromFile()
+    if result is None:
+        logger.log('SQL error occurred.', 'error')
+        sys.exit(-1)
+    counter.addRows(result)
+    counter.incrementPaths()
+    return (result, name)
 
 
-def worker(counter):
-    for item in iter(q.get, None):
-        (result, name) = do_work(item)
-        counter.addRows(result)
-        counter.incrementPaths()
-        logger.log('{}: row counter {}, path counter {} out of {}'.format(name,
-                                                                          counter.rowValue(),
-                                                                          counter.pathValue(),
-                                                                          TOTAL_PATHS))
-        q.task_done()
-    q.task_done()
+def worker(myQ, counter):
+    logger.log('worker', 'debug')
+    try:
+        for item in iter(myQ.get_nowait, None):
+            logger.log('queue {}'.format(myQ))
+            (result, name) = do_work(item, counter)
+            myQ.task_done()
+            logger.log(
+                '{}: {}: row counter {}, path counter {} out of {}'.format(item,
+                                                                           name,
+                                                                           counter.rowValue(),
+                                                                           counter.pathValue(),
+                                                                           TOTAL_PATHS))
+    except Exception as detail:
+        logger.log('Exception in worker: {}'.format(detail), 'error')
+
+    myQ.task_done()
 
 
 if __name__ == '__main__':
-    logger = SEKLogger(__name__, 'info')
+    logger = SEKLogger(__name__, 'debug')
     siUtil = SIUtil()
     processCommandLineArguments()
     paths = siUtil.pathsToProcess(COMMAND_LINE_ARGS.basepath)
@@ -118,32 +133,41 @@ if __name__ == '__main__':
 
     if MULTICORE:
         counter = RowPathCounter(0, 0)
+        q = None
 
-        q = multiprocessing.JoinableQueue(MULTIPROCESSING_LIMIT)
+        def multiProcess(myPaths):
 
-        try:
-            procs = []  # process pool
-            for i in range(MULTIPROCESSING_LIMIT):
-                procs.append(multiprocessing.Process(target = worker, args = (
-                    counter,)))
-                procs[-1].daemon = True
-                procs[-1].start()
+            q = multiprocessing.JoinableQueue(MULTIPROCESSING_LIMIT)
+            try:
 
-            for path in paths:
-                q.put(path)
 
-            q.join()
+                procs = []  # process pool
+                for i in range(MULTIPROCESSING_LIMIT):
+                    procs.append(multiprocessing.Process(target = worker,
+                                                         args = (
+                                                         q, counter,)))
+                    procs[-1].daemon = True
+                    procs[-1].start()
 
-            for p in procs:
-                q.put(None)
 
-            q.join()
+                for path in myPaths:
+                    q.put(path)
+                q.close()
+                q.join()
 
-            for p in procs:
-                p.join()
+                for i in range(len(procs)):
+                    q.put('STOP')
+                q.close()
+                q.join()
 
-        except Exception as detail:
-            logger.log("exception {}".format(detail))
+                for p in procs:
+                    p.join()
+
+
+            except Exception as detail:
+                logger.log("exception {}".format(detail))
+
+        multiProcess(paths)
 
     else:
         # Single core:

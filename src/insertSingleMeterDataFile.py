@@ -67,7 +67,7 @@ class SingleFileLoader(object):
         :param testing: Flag indicating if testing mode is on.
         """
 
-        self.logger = SEKLogger(__name__, 'info')
+        self.logger = SEKLogger(__name__, 'debug')
         self.configer = SIConfiger()
         self.dbUtil = SEKDBUtil()
         self.logger.log('making new db conn for filepath {}'.format(filepath), 'debug')
@@ -164,7 +164,7 @@ class SingleFileLoader(object):
     def insertDataFromFile(self):
         """
         Process input file as a stream from the object attribute's filepath.
-        :return: Int count of inserted records.
+        :return: Int count of inserted records or None on error.
         """
         insertCnt = 0
         with open(self.filepath) as dataFile:
@@ -176,6 +176,9 @@ class SingleFileLoader(object):
             for line in dataFile:
                 result = self.insertData(
                     line.rstrip('\n')) if lineCnt != 1 else False
+                if result is None:
+                    self.logger.log('insert did not complete', 'error')
+                    return None
                 if insertCnt > 0 and insertCnt % COMMIT_INTERVAL == 0:
                     self.conn.commit()
                     self.logger.log('committing at {}'.format(insertCnt),
