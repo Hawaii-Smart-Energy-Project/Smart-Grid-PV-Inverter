@@ -26,7 +26,7 @@ __copyright__ = 'Copyright (c) 2014, University of Hawaii Smart Energy Project'
 __license__ = 'https://raw.github.com/Hawaii-Smart-Energy-Project/Smart-Grid' \
               '-PV-Inverter/master/BSD-LICENSE.txt'
 
-from sek.logger import SEKLogger
+from sek.logger import SEKLogger, CRITICAL, ERROR, WARNING, INFO, DEBUG, SILENT
 from si_configer import SIConfiger
 from sek.db_util import SEKDBUtil
 from sek.db_connector import SEKDBConnector
@@ -61,17 +61,17 @@ class SingleFileLoader(object):
     specified in the configuration file.
     """
 
-    def __init__(self, filepath = '', testing = False):
+    def __init__(self, filepath = ''):
         """
         Constructor.
 
         :param testing: Flag indicating if testing mode is on.
         """
 
-        self.logger = SEKLogger(__name__, 'debug')
+        self.logger = SEKLogger(__name__, INFO)
         self.configer = SIConfiger()
         self.dbUtil = SEKDBUtil()
-        self.logger.log('making new db conn for filepath {}'.format(filepath), 'debug')
+        self.logger.log('making new db conn for filepath {}'.format(filepath), DEBUG)
         sys.stdout.flush()
         try:
             self.conn = SEKDBConnector(
@@ -173,23 +173,22 @@ class SingleFileLoader(object):
             result = False
 
             # @todo handle io errors
-            self.logger.log('loading data from {}'.format(dataFile), 'debug')
+            self.logger.log('loading data from {}'.format(dataFile), DEBUG)
             for line in dataFile:
                 result = self.insertData(
                     line.rstrip('\n')) if lineCnt != 1 else False
                 if result is None:
-                    self.logger.log('insert did not complete', 'error')
+                    self.logger.log('insert did not complete', ERROR)
                     return None
                 if insertCnt > 0 and insertCnt % COMMIT_INTERVAL == 0:
                     self.conn.commit()
-                    self.logger.log('committing at {}'.format(insertCnt),
-                                    'debug')
+                    self.logger.log('committing at {}'.format(insertCnt), DEBUG)
                     sys.stdout.flush()
                 if result:
                     insertCnt += 1
                 lineCnt += 1
             self.conn.commit()
-            self.logger.log('final commit at {}'.format(insertCnt), 'debug')
+            self.logger.log('final commit at {}'.format(insertCnt), DEBUG)
         return insertCnt
 
 
@@ -209,7 +208,7 @@ class SingleFileLoader(object):
             if not re.match('^\"\d+-\d+-\d+\s\d+:\d+:\d+\"',
                             values.split(',')[0]):
                 self.logger.log('bad date {}'.format(values.split(',')[0]),
-                                'error')
+                                ERROR)
                 return True
 
             return False
@@ -219,7 +218,7 @@ class SingleFileLoader(object):
             return False
 
         if self.removeDupe(values):
-            self.logger.log('duplicate found', 'silent')
+            self.logger.log('duplicate found', SILENT)
 
         sql = 'INSERT INTO "{0}" ({1}) VALUES({2}, {3})'.format(
             self.meterDataTable,
@@ -315,7 +314,7 @@ class SingleFileLoader(object):
     def getMeterID(self, meterName):
         """
         Given a meter name, return its meter ID.
-        If the meter name has no ID, create a new one and return it.
+        If the meter name has no ID, create a new one and return its ID.
         :param meterName: String
         :return: Int of meter ID
         """
@@ -350,7 +349,7 @@ class SingleFileLoader(object):
             if id:
                 return id
 
-            self.logger.log('making new meter', 'debug')
+            self.logger.log('making new meter', DEBUG)
             sql = 'INSERT INTO "Meters" (meter_name) VALUES (\'{}\')'.format(
                 name)
             success = self.dbUtil.executeSQL(self.cursor, sql,
@@ -375,7 +374,7 @@ class SingleFileLoader(object):
             return __makeNewMeter(meterName)
 
     def __del__(self):
-        self.logger.log('destroying single file inserter', 'debug')
+        self.logger.log('destroying single file inserter', DEBUG)
         self.conn.close()
 
 

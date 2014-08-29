@@ -19,7 +19,7 @@ __copyright__ = 'Copyright (c) 2014, University of Hawaii Smart Energy Project'
 __license__ = 'https://raw.github.com/Hawaii-Smart-Energy-Project/Smart-Grid' \
               '-PV-Inverter/master/BSD-LICENSE.txt'
 
-from sek.logger import SEKLogger
+from sek.logger import SEKLogger, CRITICAL, ERROR, WARNING, INFO, DEBUG, SILENT
 import argparse
 from insertSingleMeterDataFile import SingleFileLoader
 import multiprocessing
@@ -43,25 +43,21 @@ class RowPathCounter(object):
 
 
     def incrementPaths(self):
-        logger.log('increment paths', 'debug')
         with self.lock:
             self.paths.value += 1
 
 
     def addRows(self, count):
-        logger.log('add rows', 'debug')
         with self.lock:
             self.rows.value += count
 
 
     def rowValue(self):
-        logger.log('row val', 'debug')
         with self.lock:
             return self.rows.value
 
 
     def pathValue(self):
-        logger.log('path val', 'debug')
         with self.lock:
             return self.paths.value
 
@@ -84,14 +80,13 @@ def processCommandLineArguments():
 
 
 def do_work(path, counter):
-    logger.log('do work', 'debug')
     loader = SingleFileLoader(path)
     name = loader.meterName()
     logger.log('process {} for meter {} with path {}'.format(
-        str(multiprocessing.current_process()), name, path), 'debug')
+        str(multiprocessing.current_process()), name, path), DEBUG)
     result = loader.insertDataFromFile()
     if result is None:
-        logger.log('SQL error occurred.', 'error')
+        logger.log('SQL error occurred.', ERROR)
         sys.exit(-1)
     counter.addRows(result)
     counter.incrementPaths()
@@ -99,7 +94,6 @@ def do_work(path, counter):
 
 
 def worker(myQ, counter):
-    logger.log('worker', 'debug')
     try:
         for item in iter(myQ.get, None):
             logger.log('queue {}'.format(myQ))
@@ -113,11 +107,11 @@ def worker(myQ, counter):
                                                                            TOTAL_PATHS))
     except Exception as detail:
         logger.log('Exception in worker in process {} for item {}: {}'.format(
-            str(multiprocessing.current_process()), item, detail), 'error')
+            str(multiprocessing.current_process()), item, detail), ERROR)
 
 
 if __name__ == '__main__':
-    logger = SEKLogger(__name__, 'debug')
+    logger = SEKLogger(__name__, INFO)
     siUtil = SIUtil()
     processCommandLineArguments()
     if COMMAND_LINE_ARGS.process_count:
@@ -166,7 +160,7 @@ if __name__ == '__main__':
                     p.join()
 
             except Exception as detail:
-                logger.log("exception {}".format(detail))
+                logger.log("exception {}".format(detail), ERROR)
 
         multiProcess(paths)
         logger.log('final row count {}'.format(counter.rowValue()))
