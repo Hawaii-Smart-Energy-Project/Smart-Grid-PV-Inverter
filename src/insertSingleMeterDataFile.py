@@ -33,7 +33,7 @@ from sek.db_connector import SEKDBConnector
 import argparse
 import os
 import sys
-import re
+from si_data_util import SIDataUtil
 
 
 commandLineArgs = None
@@ -68,9 +68,10 @@ class SingleFileLoader(object):
         :param testing: Flag indicating if testing mode is on.
         """
 
-        self.logger = SEKLogger(__name__, INFO)
+        self.logger = SEKLogger(__name__, DEBUG)
         self.configer = SIConfiger()
         self.dbUtil = SEKDBUtil()
+        self.dataUtil = SIDataUtil()
         self.logger.log('making new db conn for filepath {}'.format(filepath), DEBUG)
         sys.stdout.flush()
         try:
@@ -86,67 +87,6 @@ class SingleFileLoader(object):
             raise Exception("Unable to get DB connection.")
         self.cursor = self.conn.cursor()
         self.exitOnError = False
-        self.dbColumns = [
-            "meter_id", "time_utc", "error", "lowalarm", "highalarm",
-            "Accumulated Real Energy Net (kWh)",
-            "Real Energy Quadrants 1 & 4, Import (kWh)",
-            "Real Energy Quadrants 2 & 3, Export (kWh)",
-            "Reactive Energy Quadrant 1 (VARh)",
-            "Reactive Energy Quadrant 2 (VARh)",
-            "Reactive Energy Quadrant 3 (VARh)",
-            "Reactive Energy Quadrant 4 (VARh)", "Apparent Energy Net (VAh)",
-            "Apparent Energy Quadrants 1 & 4 (VAh)",
-            "Apparent Energy Quadrants 2 & 3 (VAh)",
-            "Total Net Instantaneous Real Power (kW)",
-            "Total Net Instantaneous Reactive Power (kVAR)",
-            "Total Net Instantaneous Apparent Power (kVA)",
-            "Total Power Factor", "Voltage, L-L, 3p Ave (Volts)",
-            "Voltage, L-N, 3p Ave (Volts)", "Current, 3p Ave (Amps)",
-            "Frequency (Hz)", "Total Real Power Present Demand (kW)",
-            "Total Reactive Power Present Demand (kVAR)",
-            "Total Apparent Power Present Demand (kVA)",
-            "Total Real Power Max Demand, Import (kW)",
-            "Total Reactive Power Max Demand, Import (kVAR)",
-            "Total Apparent Power Max Demand, Import (kVA)",
-            "Total Real Power Max Demand, Export (kW)",
-            "Total Reactive Power Max Demand, Export (kVAR)",
-            "Total Apparent Power Max Demand, Export (kVA)",
-            "Accumulated Real Energy, Phase A, Import (kW)",
-            "Accumulated Real Energy, Phase B, Import (kW)",
-            "Accumulated Real Energy, Phase C, Import (kW)",
-            "Accumulated Real Energy, Phase A, Export (kW)",
-            "Accumulated Real Energy, Phase B, Export (kW)",
-            "Accumulated Real Energy, Phase C, Export (kW)",
-            "Accumulated Q1 Reactive Energy, Phase A, Import (VARh)",
-            "Accumulated Q1 Reactive Energy, Phase B, Import (VARh)",
-            "Accumulated Q1 Reactive Energy, Phase C, Import (VARh)",
-            "Accumulated Q2 Reactive Energy, Phase A, Import (VARh)",
-            "Accumulated Q2 Reactive Energy, Phase B, Import (VARh)",
-            "Accumulated Q2 Reactive Energy, Phase C, Import (VARh)",
-            "Accumulated Q3 Reactive Energy, Phase A, Export (VARh)",
-            "Accumulated Q3 Reactive Energy, Phase B, Export (VARh)",
-            "Accumulated Q3 Reactive Energy, Phase C, Export (VARh)",
-            "Accumulated Q4 Reactive Energy, Phase A, Export (VARh)",
-            "Accumulated Q4 Reactive Energy, Phase B, Export (VARh)",
-            "Accumulated Q4 Reactive Energy, Phase C, Export (VARh)",
-            "Accumulated Apparent Energy, Phase A, Import (VAh)",
-            "Accumulated Apparent Energy, Phase B, Import (VAh)",
-            "Accumulated Apparent Energy, Phase C, Import (VAh)",
-            "Accumulated Apparent Energy, Phase A, Export (VAh)",
-            "Accumulated Apparent Energy, Phase B, Export (VAh)",
-            "Accumulated Apparent Energy, Phase C, Export (VAh)",
-            "Real Power, Phase A (kW)", "Real Power, Phase B (kW)",
-            "Real Power, Phase C (kW)", "Reactive Power, Phase A (kVAR)",
-            "Reactive Power, Phase B (kVAR)", "Reactive Power, Phase C (kVAR)",
-            "Apparent Power, Phase A (kVA)", "Apparent Power, Phase B (kVA)",
-            "Apparent Power, Phase C (kVA)", "Power Factor, Phase A",
-            "Power Factor, Phase B", "Power Factor, Phase C",
-            "Voltage, Phase A-B (Volts)", "Voltage, Phase B-C (Volts)",
-            "Voltage, Phase A-C (Volts)", "Voltage, Phase A-N (Volts)",
-            "Voltage, Phase B-N (Volts)", "Voltage, Phase C-N (Volts)",
-            "Current, Phase A (Amps)", "Current, Phase B (Amps)",
-            "Current, Phase C (Amps)"
-        ]
 
         # An empty file path is used during creating of meter table entries.
         if filepath == '':
@@ -160,6 +100,17 @@ class SingleFileLoader(object):
             self.meterDataTable = "MeterData_{}".format(self.meterName())
             # @todo Test existence of meter data table.
         self.timestampColumn = 0 # timestamp col in the raw data
+
+
+    def newDataForMeterExists(self):
+        """
+        :return: Boolean true if file has new data.
+        """
+        if (self.dataUtil.maxTimeStamp(
+                self.filepath) >= self.dataUtil.maxTimeStampDB(
+                self.meterName())):
+            return True
+        return False
 
 
     def insertDataFromFile(self):
@@ -199,31 +150,16 @@ class SingleFileLoader(object):
         :return: Boolean indicating success or failure.
         """
 
-        def badData(values):
-            # DB cols contain an extra column for the meter ID that is not
-            # found in individual raw data files.
-            if len(self.dbColumns) - 1 != len(values.split(',')):
-                return True
-
-            if not re.match('^\"\d+-\d+-\d+\s\d+:\d+:\d+\"',
-                            values.split(',')[0]):
-                self.logger.log('bad date {}'.format(values.split(',')[0]),
-                                ERROR)
-                return True
-
-            return False
-
-
-        if not values or badData(values):
+        if not values or self.dataUtil.badData(values):
             return False
 
         if self.removeDupe(values):
-            self.logger.log('duplicate found', SILENT)
+            self.logger.log('duplicate found', DEBUG)
 
         sql = 'INSERT INTO "{0}" ({1}) VALUES({2}, {3})'.format(
             self.meterDataTable,
-            ','.join("\"" + c + "\"" for c in self.dbColumns),
-            self.meterID, self.sqlFormattedValues(values))
+            ','.join("\"" + c + "\"" for c in self.dataUtil.dbColumns),
+            self.meterID, self.dataUtil.sqlFormattedValues(values))
 
         if self.dbUtil.executeSQL(self.cursor, sql,
                                   exitOnFail = self.exitOnError):
@@ -269,25 +205,6 @@ class SingleFileLoader(object):
                         "Unable to remove dupe for meter ID {}, time UTC {}".format(
                             self.meterID, timeUTC))
         return False
-
-
-    def sqlFormattedValues(self, values):
-        """
-        :param values: String of raw values from the source CSV files.
-        :return: String of PostgreSQL compatible values.
-        """
-
-
-        def makeNULL(x):
-            return x == '' and 'NULL' or str(x)
-
-
-        def makeSingleQuotes(x):
-            return str(x).replace('"', "'")
-
-
-        return ','.join(
-            map(lambda x: makeSingleQuotes(makeNULL(x)), values.split(',')))
 
 
     def timeUTC(self, values):
@@ -380,5 +297,9 @@ class SingleFileLoader(object):
 
 if __name__ == '__main__':
     processCommandLineArguments()
+    logger = SEKLogger(__name__)
     inserter = SingleFileLoader(commandLineArgs.filepath)
-    inserter.insertDataFromFile()
+    if inserter.newDataForMeterExists():
+        logger.log('result = {}'.format(inserter.insertDataFromFile()))
+    else:
+        logger.log('no new data')

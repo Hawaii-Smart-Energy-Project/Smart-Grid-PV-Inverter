@@ -12,7 +12,10 @@ from si_configer import SIConfiger
 from sek.logger import SEKLogger
 from sek.db_util import SEKDBUtil
 from sek.db_connector import SEKDBConnector
+from si_data_util import SIDataUtil
 
+
+NUM_DB_COLS = 76
 
 class SingleFileLoaderTester(unittest.TestCase):
     def setUp(self):
@@ -28,6 +31,7 @@ class SingleFileLoaderTester(unittest.TestCase):
                                                          'db_password')).connectDB()
         self.cursor = self.conn.cursor()
         self.dbUtil = SEKDBUtil()
+        self.dataUtil = SIDataUtil()
         self.inserter = SingleFileLoader('data/test-meter/log.csv')
         self.data = '"2014-07-12 16:22:30",0,,,1187488464896.00,' \
                     '2322185846784.00,1134697381888.00,35184644096.00,' \
@@ -45,7 +49,7 @@ class SingleFileLoaderTester(unittest.TestCase):
 
 
     def test_columns(self):
-        self.assertEquals(len(self.inserter.dbColumns), 76)
+        self.assertEquals(len(self.dataUtil.dbColumns), NUM_DB_COLS)
 
 
     def test_insert_data(self):
@@ -56,7 +60,7 @@ class SingleFileLoaderTester(unittest.TestCase):
 
     def test_sql_formatted_values(self):
         self.logger.log(
-            'data: {}'.format(self.inserter.sqlFormattedValues(self.data)))
+            'data: {}'.format(self.dataUtil.sqlFormattedValues(self.data)))
 
 
     def test_meter_id(self):
@@ -93,6 +97,7 @@ class SingleFileLoaderTester(unittest.TestCase):
             self.assertEquals(len(result), 10)
 
         self.assertTrue(success)
+
 
     def tearDown(self):
         self.logger.log('teardown', 'debug')

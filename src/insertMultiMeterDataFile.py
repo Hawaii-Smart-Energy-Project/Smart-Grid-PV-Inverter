@@ -36,7 +36,14 @@ TOTAL_PATHS = 0
 
 
 class RowPathCounter(object):
+    """
+    Counter for multiprocessing.
+    """
     def __init__(self, rowValue = 0, pathValue = 0):
+        """
+        :param rowValue: Int count of rows
+        :param pathValue: Int count of paths
+        """
         self.rows = multiprocessing.Value('i', rowValue)
         self.paths = multiprocessing.Value('i', pathValue)
         self.lock = multiprocessing.Lock()
@@ -84,7 +91,12 @@ def do_work(path, counter):
     name = loader.meterName()
     logger.log('process {} for meter {} with path {}'.format(
         str(multiprocessing.current_process()), name, path), DEBUG)
-    result = loader.insertDataFromFile()
+
+    if not loader.newDataForMeterExists():
+        result = 0
+    else:
+        result = loader.insertDataFromFile()
+
     if result is None:
         logger.log('SQL error occurred.', ERROR)
         sys.exit(-1)
