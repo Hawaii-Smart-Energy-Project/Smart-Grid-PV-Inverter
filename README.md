@@ -31,3 +31,13 @@ TBW
 
 TBW
 
+## Data Loading
+
+Data loading is accomplished using
+
+    $ python insertMultiMeterDataFile.py --basepath ${FULL_PATH_TO_DATA}
+
+### Debugging Data Loading Problems
+
+The most likely reason for data loading to fail is when bad data cannot be
+determined by `SIDataUtil.badData`.
