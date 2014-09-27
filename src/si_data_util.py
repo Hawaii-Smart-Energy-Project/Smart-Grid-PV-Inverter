@@ -14,6 +14,12 @@ from sek.db_util import SEKDBUtil
 from sek.db_connector import SEKDBConnector
 
 class SIDataUtil(object):
+    """
+    Utility methods for Smart Inverter data including the full list of SI
+    data columns.
+    """
+
+
     def __init__(self):
         self.logger = SEKLogger(__name__, DEBUG)
         self.configer = SIConfiger()

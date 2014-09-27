@@ -36,7 +36,7 @@ import sys
 from si_data_util import SIDataUtil
 
 
-commandLineArgs = None
+COMMAND_LINE_ARGS = None
 COMMIT_INTERVAL = 1000
 
 
@@ -45,14 +45,16 @@ def processCommandLineArguments():
     Create command line arguments and parse them.
     """
 
-    global parser, commandLineArgs
+    global COMMAND_LINE_ARGS
     parser = argparse.ArgumentParser(
         description = 'Perform insertion of data contained in a single file to '
                       'the SI database.')
     parser.add_argument('--filepath', required = True,
                         help = 'A filepath, including the filename, '
                                'for a file containing data to be inserted.')
-    commandLineArgs = parser.parse_args()
+    parser.add_argument('--skipNewDataCheck', action = 'store_true',
+                        default = False, help = 'Skip the new data check.')
+    COMMAND_LINE_ARGS = parser.parse_args()
 
 
 class SingleFileLoader(object):
@@ -118,6 +120,7 @@ class SingleFileLoader(object):
         Process input file as a stream from the object attribute's filepath.
         :return: Int count of inserted records or None on error.
         """
+
         insertCnt = 0
         with open(self.filepath) as dataFile:
             lineCnt = 1
@@ -290,16 +293,19 @@ class SingleFileLoader(object):
         else:
             return __makeNewMeter(meterName)
 
+
     def __del__(self):
-        self.logger.log('destroying single file inserter', DEBUG)
+        self.logger.log('Destroying single file inserter', DEBUG)
         self.conn.close()
 
 
 if __name__ == '__main__':
     processCommandLineArguments()
     logger = SEKLogger(__name__)
-    inserter = SingleFileLoader(commandLineArgs.filepath)
-    if inserter.newDataForMeterExists():
+    inserter = SingleFileLoader(COMMAND_LINE_ARGS.filepath)
+    if COMMAND_LINE_ARGS.skipNewDataCheck:
+        logger.log('result = {}'.format(inserter.insertDataFromFile()))
+    elif inserter.newDataForMeterExists():
         logger.log('result = {}'.format(inserter.insertDataFromFile()))
     else:
         logger.log('no new data')

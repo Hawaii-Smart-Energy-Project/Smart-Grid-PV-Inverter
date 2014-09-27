@@ -28,6 +28,7 @@ class SIDataUtilTester(unittest.TestCase):
                                             '%Y-%m-%d %H:%M:%S'))
 
     def test_find_max_timestamp_db(self):
+        # @todo test with a static testing DB
         meter = '001EC6051A0D'
         self.logger.log(self.dataUtil.maxTimeStampDB(meter))
 
