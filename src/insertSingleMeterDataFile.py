@@ -74,8 +74,9 @@ class SingleFileLoader(object):
         self.configer = SIConfiger()
         self.dbUtil = SEKDBUtil()
         self.dataUtil = SIDataUtil()
-        self.logger.log('making new db conn for filepath {}'.format(filepath), DEBUG)
+        self.logger.log('making new db conn for filepath {}'.format(filepath), SILENT)
         sys.stdout.flush()
+
         try:
             self.conn = SEKDBConnector(
                 dbName = self.configer.configOptionValue('Database', 'db_name'),
@@ -108,11 +109,16 @@ class SingleFileLoader(object):
         """
         :return: Boolean true if file has new data.
         """
-        if (self.dataUtil.maxTimeStamp(
-                self.filepath) >= self.dataUtil.maxTimeStampDB(
-                self.meterName())):
-            return True
-        return False
+        try:
+            if (self.dataUtil.maxTimeStamp(
+                    self.filepath) >= self.dataUtil.maxTimeStampDB(
+                    self.meterName())):
+                return True
+            return False
+        except TypeError as detail:
+            # @todo Log the cause of the exception.
+            self.logger.log('Exception: {}'.format(detail), CRITICAL)
+            return False
 
 
     def insertDataFromFile(self):
@@ -132,8 +138,10 @@ class SingleFileLoader(object):
                 result = self.insertData(
                     line.rstrip('\n')) if lineCnt != 1 else False
                 if result is None:
-                    self.logger.log('insert did not complete', ERROR)
-                    return None
+                    self.logger.log('Critical insert failure', CRITICAL)
+                    raise Exception('Insert did not complete')
+                    # self.logger.log('insert did not complete', ERROR)
+                    # return None
                 if insertCnt > 0 and insertCnt % COMMIT_INTERVAL == 0:
                     self.conn.commit()
                     self.logger.log('committing at {}'.format(insertCnt), DEBUG)
@@ -163,6 +171,7 @@ class SingleFileLoader(object):
             self.meterDataTable,
             ','.join("\"" + c + "\"" for c in self.dataUtil.dbColumns),
             self.meterID, self.dataUtil.sqlFormattedValues(values))
+        self.logger.log('sql: {}'.format(sql), DEBUG)
 
         if self.dbUtil.executeSQL(self.cursor, sql,
                                   exitOnFail = self.exitOnError):
