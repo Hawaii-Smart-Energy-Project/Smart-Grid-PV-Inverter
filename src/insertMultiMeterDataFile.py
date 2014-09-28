@@ -20,15 +20,17 @@ __license__ = 'https://raw.github.com/Hawaii-Smart-Energy-Project/Smart-Grid' \
               '-PV-Inverter/master/BSD-LICENSE.txt'
 
 from sek.logger import SEKLogger, CRITICAL, ERROR, WARNING, INFO, DEBUG, SILENT
+from sek.notifier import SEKNotifier
 import argparse
 from insertSingleMeterDataFile import SingleFileLoader
 import multiprocessing
 from si_util import SIUtil
 import sys
+from multiprocessing.queues import Empty
 
 
 COMMAND_LINE_ARGS = None
-MULTIPROCESSING_LIMIT = 6
+MULTIPROCESSING_LIMIT = 4
 MULTICORE = True
 RESULT_CNTS = {}
 PATHS_PROCESSED_CNT = 0
@@ -86,7 +88,7 @@ def processCommandLineArguments():
     COMMAND_LINE_ARGS = parser.parse_args()
 
 
-def do_work(path, counter):
+def do_work(path, counter, queue = None):
     loader = SingleFileLoader(path)
     name = loader.meterName()
     logger.log('process {} for meter {} with path {}'.format(
@@ -94,18 +96,41 @@ def do_work(path, counter):
 
     if not loader.newDataForMeterExists():
         result = 0
+        logger.log('no new data', DEBUG)
     else:
         result = loader.insertDataFromFile()
+        logger.log('result = {}'.format(result), DEBUG)
 
     if result is None:
         logger.log('SQL error occurred.', ERROR)
         sys.exit(-1)
+
+    if queue:
+        queue.task_done()
+        
     counter.addRows(result)
     counter.incrementPaths()
+
     return (result, name)
 
 
 def worker(myQ, counter):
+    # while True:
+    #     try:
+    #         item = myQ.get()
+    #     except Empty:
+    #         break
+    #     else:
+    #         (result, name) = do_work(item, counter, myQ)
+    #         logger.log(
+    #             '{}: {}: row counter {}, path counter {} out of {}'.format(item,
+    #                                                                        name,
+    #                                                                        counter.rowValue(),
+    #                                                                        counter.pathValue(),
+    #                                                                        TOTAL_PATHS))
+
+    # Alternative queue iteration:
+    #
     try:
         for item in iter(myQ.get, None):
             logger.log('queue {}'.format(myQ))
@@ -123,7 +148,31 @@ def worker(myQ, counter):
 
 
 if __name__ == '__main__':
-    logger = SEKLogger(__name__, INFO)
+    logger = SEKLogger(__name__, DEBUG)
+    logger.logger.setLevel(multiprocessing.SUBDEBUG)
+
+    # @todo add connector
+    # @todo add dbutil
+
+    # notifier = SEKNotifier(connector = connector,
+    #                                 dbUtil = dbUtil,
+    #                                 user = configer.configOptionValue(
+    #                                     'Notifications', 'email_username'),
+    #                                 password = configer.configOptionValue(
+    #                                     'Notifications', 'email_password'),
+    #                                 fromaddr = configer.configOptionValue(
+    #                                     'Notifications', 'email_from_address'),
+    #                                 toaddr = configer.configOptionValue(
+    #                                     'Notifications', 'email_recipients'),
+    #                                 testing_toaddr =
+    #                                 configer.configOptionValue(
+    #                                     'Notifications',
+    #                                     'testing_email_recipients'),
+    #                                 smtp_server_and_port =
+    #                                 configer.configOptionValue(
+    #                                     'Notifications',
+    #                                     'smtp_server_and_port'))
+
     siUtil = SIUtil()
     processCommandLineArguments()
     if COMMAND_LINE_ARGS.process_count:
@@ -158,11 +207,13 @@ if __name__ == '__main__':
                     procs[-1].daemon = True
                     procs[-1].start()
 
+                logger.log('len my paths {}'.format(len(myPaths)), CRITICAL)
                 for path in myPaths:
                     q.put(path)
-                q.close()
-                q.join()
+                q.close() # add no more items
+                q.join() # blocks until everything is finished in the queue
 
+                logger.log('len procs {}'.format(len(procs)), CRITICAL)
                 for i in range(len(procs)):
                     q.put('STOP')
                 q.close()
@@ -172,7 +223,7 @@ if __name__ == '__main__':
                     p.join()
 
             except Exception as detail:
-                logger.log("exception {}".format(detail), ERROR)
+                logger.log("Exception {}".format(detail), ERROR)
 
         multiProcess(paths)
         logger.log('final row count {}'.format(counter.rowValue()))
