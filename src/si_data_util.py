@@ -166,6 +166,6 @@ class SIDataUtil(object):
                                   exitOnFail = self.exitOnError):
             row = self.cursor.fetchone()
             if row and len(row) == 1:
-                self.logger.log('row {}'.format(row))
+                # self.logger.log('row {}'.format(row), DEBUG)
                 return row[0]
         return None

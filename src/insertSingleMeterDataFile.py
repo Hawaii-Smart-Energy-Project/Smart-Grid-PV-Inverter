@@ -6,6 +6,9 @@ Inserts a single file of meter data.
 
 Usage:
 
+Initialization
+==============
+
     insertSingleMeterDataFile.py --filepath ${FILEPATH}
 
 or
@@ -15,9 +18,13 @@ or
 
 or for meter creation or retrieval:
 
-    loader = SingleFileLoader().getMeterID(${METER_NAME})
+    loader = SingleFileLoader().getOrMakeMeterID(${METER_NAME})
 
 The meter name is by convention the folder name in which the data is contained.
+
+Public API
+
+    def insertDataFromFile() : (Rows:Integer, Exceptions:Integer)
 
 """
 
@@ -34,6 +41,7 @@ import argparse
 import os
 import sys
 from si_data_util import SIDataUtil
+import time
 
 
 COMMAND_LINE_ARGS = None
@@ -98,17 +106,19 @@ class SingleFileLoader(object):
             self.meterDataTable = None
         else:
             self.filepath = filepath
-            self.meterID = self.getMeterID(self.meterName())
+            self.meterID = self.getOrMakeMeterID(self.meterName())
             assert self.meterID is not None
             self.meterDataTable = "MeterData_{}".format(self.meterName())
             # @todo Test existence of meter data table.
         self.timestampColumn = 0 # timestamp col in the raw data
+        self.exceptionCount = 0
 
 
     def newDataForMeterExists(self):
         """
         :return: Boolean true if file has new data.
         """
+
         try:
             if (self.dataUtil.maxTimeStamp(
                     self.filepath) >= self.dataUtil.maxTimeStampDB(
@@ -118,13 +128,15 @@ class SingleFileLoader(object):
         except TypeError as detail:
             # @todo Log the cause of the exception.
             self.logger.log('Exception: {}'.format(detail), CRITICAL)
+            self.exceptionCount += 1
             return False
 
 
     def insertDataFromFile(self):
         """
         Process input file as a stream from the object attribute's filepath.
-        :return: Int count of inserted records or None on error.
+        :return: (Int, Int) Tuple of Int count of inserted records or None on
+        error and Int count of exceptions encountered.
         """
 
         insertCnt = 0
@@ -151,7 +163,7 @@ class SingleFileLoader(object):
                 lineCnt += 1
             self.conn.commit()
             self.logger.log('final commit at {}'.format(insertCnt), DEBUG)
-        return insertCnt
+        return (insertCnt, self.exceptionCount)
 
 
     def insertData(self, values, commitOnEvery = False):
@@ -240,7 +252,7 @@ class SingleFileLoader(object):
         return os.path.basename(os.path.dirname(self.filepath))
 
 
-    def getMeterID(self, meterName):
+    def getOrMakeMeterID(self, meterName):
         """
         Given a meter name, return its meter ID.
         If the meter name has no ID, create a new one and return its ID.
