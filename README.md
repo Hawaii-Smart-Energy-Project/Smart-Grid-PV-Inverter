@@ -39,5 +39,9 @@ Data loading is accomplished using
 
 ### Debugging Data Loading Problems
 
-The most likely reason for data loading to fail is when bad data cannot be
-determined by `SIDataUtil.badData`.
+The most likely reason for data loading to fail is when an exception occurs
+within the worker process for loading a single file. Another possibility is
+that bad data cannot be determined by `SIDataUtil.badData`.
+
+A count of the exceptions that have occurred during loading is maintained in the
+multi file loader.
