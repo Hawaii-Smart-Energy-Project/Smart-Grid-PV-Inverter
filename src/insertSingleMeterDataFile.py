@@ -121,7 +121,7 @@ class SingleFileLoader(object):
 
         try:
             if (self.dataUtil.maxTimeStamp(
-                    self.filepath) >= self.dataUtil.maxTimeStampDB(
+                    self.filepath) > self.dataUtil.maxTimeStampDB(
                     self.meterName())):
                 return True
             return False
